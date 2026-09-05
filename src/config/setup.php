@@ -12,6 +12,8 @@ try {
         'student_quiz_answers',
         'student_assessments',
         'discussion_replies',
+        'teacher_quiz_feedback',
+
         'discussion_posts',
         'quiz_questions',
         'chapter_quizzes',
@@ -92,6 +94,19 @@ try {
         correct_option TEXT NOT NULL,
         score INTEGER DEFAULT 1 NOT NULL
     );");
+
+$pdo->exec("CREATE TABLE teacher_quiz_feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    teacher_id INTEGER,
+    student_id INTEGER NOT NULL,
+    chapter_name TEXT NOT NULL,
+    subtopic_name TEXT NOT NULL,
+    comment TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE SET NULL,
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
+);");
+
 
     $pdo->exec("CREATE TABLE student_quiz_answers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -195,15 +210,22 @@ try {
         ('Volcanic Jungle: Fractions & Decimals', '3.2', 'Decimal Conversion and Advanced Operations', NULL);");
 
         
-    $pdo->exec("INSERT INTO student_progress (student_id, island_id, chapter_name, level, status) VALUES 
-        (1, 1, 'Ancient Pyramid: Fundamentals', 3, 'Completed'),
-        (1, 2, 'Cherry Blossom: Multiplications', 2, 'Completed'),
-        (1, 3, 'Volcanic Jungle: Fractions & Decimals', 2, 'Completed');");
+$pdo->exec("INSERT INTO student_progress (student_id, island_id, chapter_name, level, status) VALUES 
+    (1, 1, 'Ancient Pyramid: Fundamentals', 0, 'In Progress'),
+    (1, 2, 'Cherry Blossom: Multiplications', 0, 'In Progress'),
+    (1, 3, 'Volcanic Jungle: Fractions & Decimals', 0, 'In Progress'),
+    (2, 1, 'Ancient Pyramid: Fundamentals', 1, 'In Progress'),
+    (2, 2, 'Cherry Blossom: Multiplications', 0, 'In Progress'),
+    (2, 3, 'Volcanic Jungle: Fractions & Decimals', 0, 'In Progress'),
+    (3, 1, 'Ancient Pyramid: Fundamentals', 2, 'Completed'),
+    (3, 2, 'Cherry Blossom: Multiplications', 0, 'In Progress'),
+    (3, 3, 'Volcanic Jungle: Fractions & Decimals', 0, 'In Progress');");
 
-    $pdo->exec("INSERT INTO student_assessments (id, student_id, island_id, title, type, score, status, submitted_at) VALUES 
-        (1, 1, 1, 'Chapter 1 Standard Test: Addition & Subtraction', 'Test', '3/3', 'Mastered', '2026-03-01 09:00:00'),
-        (2, 1, 2, 'Chapter 2 Standard Test: Equivalent Fractions', 'Test', '3/3', 'Mastered', '2026-03-02 11:30:00'),
-        (3, 1, 3, 'Chapter 3 Standard Test: Mixed Numbers & Decimals', 'Test', '3/3', 'Mastered', '2026-03-03 14:00:00');");
+$pdo->exec("INSERT INTO student_assessments 
+    (id, student_id, island_id, title, type, score, status, submitted_at) VALUES 
+    (1, 2, 1, 'Subtopic 1.1 Assessment', 'Quiz', '3/4', 'Completed', '2026-09-01 09:00:00'),
+    (2, 3, 1, 'Subtopic 1.1 Assessment', 'Quiz', '4/4', 'Completed', '2026-09-01 10:00:00'),
+    (3, 3, 1, 'Subtopic 1.2 Assessment', 'Quiz', '3/4', 'Completed', '2026-09-01 11:00:00');");
 
     $pdo->exec("INSERT INTO discussion_posts (student_id, title, content) VALUES 
         (1, 'How do I simplify 12/16 to its lowest terms?', 'I know I need to divide numerator and denominator by the highest common factor, but I am stuck.');");
@@ -258,33 +280,122 @@ try {
         ['Volcanic Jungle: Fractions & Decimals', '3.2', 'Subtopic 3.2 Assessment', 'Convert 2 1/4 to an improper fraction.', '9/4', '7/4', '8/4', '9/2', 'A', 1],
         ['Volcanic Jungle: Fractions & Decimals', '3.2', 'Subtopic 3.2 Assessment', 'Calculate 1/2 + 1/3.', '2/5', '5/6', '2/6', '3/6', 'B', 1]
     ];
-    
+
 
     $stmt_q_bank = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, subtopic_name, title, question, option_a, option_b, option_c, option_d, correct_option, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     foreach ($chapter_quizzes_data as $q) {
         $stmt_q_bank->execute([$q[0], $q[1], $q[2], $q[3], $q[4], $q[5], $q[6], $q[7], $q[8], $q[9]]);
     }
 
-    // Seed Student Quiz Answers linked to students (student_id = 1) and quizzes (quiz_id = 1 to 9)
-    $student_answers_data = [
-        // Assessment 1 (Student 1, Quiz IDs 1, 2, 3)
-        [1, 1, 1, 'What is 1/5 + 2/5?', '3/5', '3/5', 1, 'Add numerators directly when denominators are identical.', 'Correct', 1],
-        [1, 1, 2, 'What is 3/4 + 2/4?', '5/8', '5/4 or 1 1/4', 0, 'Keep denominator as 4 when adding common fractions.', 'Incorrect', 0],
-        [1, 1, 3, 'What is 7/10 - 3/10?', '4/10', '4/10', 1, 'Subtract numerators: 7 - 3 = 4.', 'Correct', 1],
-        // Assessment 2 (Student 1, Quiz IDs 4, 5, 6)
-        [2, 1, 4, 'Simplify 6/8 to lowest terms.', '3/6', '3/4', 0, 'Divide top and bottom by greatest common divisor (2).', 'Incorrect', 0],
-        [2, 1, 5, 'Simplify 5/10 to lowest terms.', '1/2', '1/2', 1, 'Divide numerator and denominator by 5.', 'Correct', 1],
-        [2, 1, 6, 'Which fraction is equivalent to 1/3?', '2/6', '2/6', 1, 'Multiply numerator and denominator by 2.', 'Correct', 1],
-        // Assessment 3 (Student 1, Quiz IDs 7, 8, 9)
-        [3, 1, 7, 'Convert 7/3 to a mixed number.', '2 1/3', '2 1/3', 1, '7 divided by 3 equals 2 remainder 1.', 'Correct', 1],
-        [3, 1, 8, 'Convert 3 1/2 to an improper fraction.', '7/2', '7/2', 1, '(3 * 2) + 1 = 7 over denominator 2.', 'Correct', 1],
-        [3, 1, 9, 'Calculate 1/3 + 1/4.', '7/12', '7/12', 1, 'Find common denominator (12): 4/12 + 3/12 = 7/12.', 'Correct', 1]
-    ];
 
-    $stmt_ans = $pdo->prepare("INSERT INTO student_quiz_answers (assessment_id, student_id, quiz_id, question_text, student_answer, correct_answer, is_correct, explanation, answer_status, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    foreach ($student_answers_data as $ans) {
-        $stmt_ans->execute($ans);
-    }
+
+$pdo->exec("INSERT INTO teacher_quiz_feedback
+    (teacher_id, student_id, chapter_name, subtopic_name, comment) VALUES
+
+    (1, 2, 'Ancient Pyramid: Fundamentals', '1.1',
+     'Good work, but review how to add fractions with the same denominator.'),
+
+    (1, 3, 'Ancient Pyramid: Fundamentals', '1.1',
+     'Excellent work on this subtopic. Keep up the good work!'),
+
+    (1, 1, 'Ancient Pyramid: Fundamentals', '1.1',
+     'Take your time and review the basic steps for adding fractions.'),
+
+    (1, 3, 'Ancient Pyramid: Fundamentals', '1.2',
+     'Good effort. Please review subtraction of fractions with the same denominator.'),
+
+    (1, 2, 'Cherry Blossom: Multiplications', '2.1',
+     'Remember to divide both the numerator and denominator by the same common factor when simplifying fractions.')
+");
+
+$student_answers_data = [
+
+    // =====================================================
+    // Bao Nguyen - Subtopic 1.1
+    // Score: 3/4
+    // =====================================================
+
+    [1, 2, 1, 'What is 1/5 + 2/5?', '3/5', '3/5', 1,
+        'Add the numerators directly when the denominators are the same.',
+        'Correct', 1],
+
+    [1, 2, 2, 'What is 3/4 + 2/4?', '5/8', '5/4', 0,
+        'Keep the denominator as 4 when adding fractions with the same denominator.',
+        'Incorrect', 0],
+
+    [1, 2, 3, 'What is 2/3 + 1/3?', 'All of the above', 'All of the above', 1,
+        '2/3 + 1/3 = 3/3 = 1. All of the listed answers represent the same value.',
+        'Correct', 1],
+
+    [1, 2, 4, 'What is 1/8 + 3/8?', 'All of the above', 'All of the above', 1,
+        '1/8 + 3/8 = 4/8 = 1/2 = 2/4.',
+        'Correct', 1],
+
+
+    // =====================================================
+    // Carlos Mendez - Subtopic 1.1
+    // Score: 4/4
+    // =====================================================
+
+    [2, 3, 1, 'What is 1/5 + 2/5?', '3/5', '3/5', 1,
+        'Add the numerators directly when the denominators are the same.',
+        'Correct', 1],
+
+    [2, 3, 2, 'What is 3/4 + 2/4?', '5/4', '5/4', 1,
+        'Keep the denominator as 4 and add the numerators.',
+        'Correct', 1],
+
+    [2, 3, 3, 'What is 2/3 + 1/3?', '1', '1', 1,
+        '2/3 + 1/3 = 3/3 = 1.',
+        'Correct', 1],
+
+    [2, 3, 4, 'What is 1/8 + 3/8?', '1/2', '1/2', 1,
+        '1/8 + 3/8 = 4/8 = 1/2.',
+        'Correct', 1],
+
+
+    // =====================================================
+    // Carlos Mendez - Subtopic 1.2
+    // Score: 3/4
+    // =====================================================
+
+    [3, 3, 5, 'What is 7/10 - 3/10?', '4/10', '4/10', 1,
+        'Subtract the numerators: 7 - 3 = 4.',
+        'Correct', 1],
+
+    [3, 3, 6, 'What is 9/10 - 4/10?', '5/10', '5/10', 1,
+        'Subtract the numerators: 9 - 4 = 5.',
+        'Correct', 1],
+
+    [3, 3, 7, 'What is 5/6 - 2/6?', '3/6', '3/6', 1,
+        'Subtract the numerators: 5 - 2 = 3.',
+        'Correct', 1],
+
+    [3, 3, 8, 'What is 4/5 - 1/5?', '2/5', '3/5', 0,
+        'Subtract the numerators: 4 - 1 = 3, so the answer is 3/5.',
+        'Incorrect', 0]
+];
+
+$stmt_ans = $pdo->prepare("
+    INSERT INTO student_quiz_answers
+    (
+        assessment_id,
+        student_id,
+        quiz_id,
+        question_text,
+        student_answer,
+        correct_answer,
+        is_correct,
+        explanation,
+        answer_status,
+        score
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+");
+
+foreach ($student_answers_data as $ans) {
+    $stmt_ans->execute($ans);
+}
 
     $pdo->exec("INSERT INTO announcements (title, content, is_active) VALUES 
         ('📢 Additional Math Support Class', 'Teacher Sarah has added an extra online tutoring session this Thursday at 3:00 PM for review.', 1);");

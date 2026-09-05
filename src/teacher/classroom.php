@@ -6,13 +6,7 @@ require_once __DIR__ . '/../config/db.php';
 
 $class_id = isset($_GET['id']) ? intval($_GET['id']) : 1;
 
-// Ensure classroom_chapters table exists for global chapter locking/unlocking
-$pdo->exec("CREATE TABLE IF NOT EXISTS classroom_chapters (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    classroom_id INT NOT NULL,
-    chapter_name VARCHAR(100) NOT NULL,
-    is_unlocked TINYINT DEFAULT 0
-)");
+
 
 // Handle global chapter unlock action for the whole class
 if (isset($_GET['action']) && $_GET['action'] === 'toggle_chapter' && isset($_GET['chapter'])) {
@@ -82,6 +76,8 @@ $stmt_students = $pdo->prepare("SELECT * FROM students WHERE classroom_id = ?");
 $stmt_students->execute([$class_id]);
 $students_raw = $stmt_students->fetchAll(PDO::FETCH_ASSOC);
 
+$table_chapter = $_GET['table_chapter'] ?? $chapters[0];
+
 $students = [];
 
 foreach ($students_raw as $s) {
@@ -106,9 +102,88 @@ foreach ($students_raw as $s) {
         }
     }
 
-    $percentage = $max_possible_score > 0 ? round(($total_earned_score / $max_possible_score) * 100) : 0;
+$percentage = $max_possible_score > 0
+    ? round(($total_earned_score / $max_possible_score) * 100)
+    : 0;
 
-    $stmt_live_score = $pdo->prepare("
+
+// ---------------------------------------------------------
+// Calculate student status based on Quiz performance
+// for the selected table chapter
+// ---------------------------------------------------------
+
+// Total quiz questions in this chapter
+$stmt_status_total = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM chapter_quizzes
+    WHERE chapter_name = ?
+");
+$stmt_status_total->execute([$table_chapter]);
+
+$status_total_questions = (int)$stmt_status_total->fetchColumn();
+
+
+// Questions the student has actually attempted
+$stmt_status_attempted = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM student_quiz_answers sqa
+    JOIN student_assessments sa
+        ON sqa.assessment_id = sa.id
+    JOIN chapter_quizzes cq
+        ON sqa.quiz_id = cq.id
+    WHERE sa.student_id = ?
+      AND sa.type = 'Quiz'
+      AND cq.chapter_name = ?
+");
+$stmt_status_attempted->execute([
+    $s['id'],
+    $table_chapter
+]);
+
+$status_attempted_questions = (int)$stmt_status_attempted->fetchColumn();
+
+
+// Correct answers
+$stmt_status_correct = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM student_quiz_answers sqa
+    JOIN student_assessments sa
+        ON sqa.assessment_id = sa.id
+    JOIN chapter_quizzes cq
+        ON sqa.quiz_id = cq.id
+    WHERE sa.student_id = ?
+      AND sa.type = 'Quiz'
+      AND cq.chapter_name = ?
+      AND sqa.is_correct = 1
+");
+$stmt_status_correct->execute([
+    $s['id'],
+    $table_chapter
+]);
+
+$status_correct = (int)$stmt_status_correct->fetchColumn();
+
+
+// Calculate quiz percentage
+$status_percentage = $status_total_questions > 0
+    ? round(($status_correct / $status_total_questions) * 100)
+    : 0;
+
+
+// Determine student status
+if ($status_attempted_questions == 0) {
+    $student_status = '-';
+} elseif ($status_percentage >= 80) {
+    $student_status = 'Mastering';
+} elseif ($status_percentage >= 50) {
+    $student_status = 'On Track';
+} else {
+    $student_status = 'Struggling';
+}
+
+
+$stmt_live_score = $pdo->prepare("
+
         SELECT COALESCE(SUM(sq.is_correct), 0) 
         FROM student_quiz_answers sq 
         JOIN student_assessments sa ON sq.assessment_id = sa.id 
@@ -116,36 +191,77 @@ foreach ($students_raw as $s) {
     ");
     $stmt_live_score->execute([$s['id']]);
     $live_score = $stmt_live_score->fetchColumn();
+$students[] = [
+    "id" => $s['id'],
+    "name" => $s['name'],
+    "status" => $student_status,
+    "score" => intval($live_score),
+    "progress" => $student_levels,
+    "summary" => $percentage . "%"
+];
 
-    $students[] = [
-        "id" => $s['id'],
-        "name" => $s['name'],
-        "status" => $s['status'],
-        "score" => intval($live_score),
-        "progress" => $student_levels,
-        "summary" => $percentage . "%"
-    ];
 }
+
 
 // Selected chapter for overview circle tracker graph
 $overview_chapter = $_GET['overview_chapter'] ?? $chapters[0];
 
-// Fetch class average progress level for the selected overview chapter
-$stmt_avg = $pdo->prepare("
-    SELECT AVG(sp.level) as avg_lvl 
-    FROM student_progress sp 
-    JOIN students s ON sp.student_id = s.id 
-    WHERE sp.chapter_name = ? AND s.classroom_id = ?
+// Total questions in selected chapter
+$stmt_overview_total = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM chapter_quizzes
+    WHERE chapter_name = ?
 ");
-$stmt_avg->execute([$overview_chapter, $class_id]);
-$avg_level = $stmt_avg->fetchColumn() ?: 0;
+$stmt_overview_total->execute([$overview_chapter]);
 
-// Define max level scale (adjust to 3 if your max student level per chapter is 3)
-$overview_max_scale = 3; 
-$overview_percentage = min(100, round(($avg_level / $overview_max_scale) * 100));
+$overview_total_questions = (int)$stmt_overview_total->fetchColumn();
+
+
+$student_progress_percentages = [];
+
+if ($overview_total_questions > 0) {
+
+    foreach ($students_raw as $overview_student) {
+
+        // Count correct answers for this student in this chapter
+        $stmt_overview_correct = $pdo->prepare("
+            SELECT COUNT(*)
+            FROM student_quiz_answers sqa
+            JOIN student_assessments sa
+                ON sqa.assessment_id = sa.id
+            JOIN chapter_quizzes cq
+                ON sqa.quiz_id = cq.id
+            WHERE sa.student_id = ?
+              AND sa.type = 'Quiz'
+              AND cq.chapter_name = ?
+              AND sqa.is_correct = 1
+        ");
+
+        $stmt_overview_correct->execute([
+            $overview_student['id'],
+            $overview_chapter
+        ]);
+
+        $overview_correct = (int)$stmt_overview_correct->fetchColumn();
+
+        // Student's chapter progress
+        $student_percentage = round(
+            ($overview_correct / $overview_total_questions) * 100
+        );
+
+        $student_progress_percentages[] = $student_percentage;
+    }
+}
+
+// Average of ALL students
+$overview_percentage = count($student_progress_percentages) > 0
+    ? round(
+        array_sum($student_progress_percentages)
+        / count($student_progress_percentages)
+    )
+    : 0;
 
 // Filter criteria for table section
-$table_chapter = $_GET['table_chapter'] ?? $chapters[0];
 $status_filter = $_GET['status_filter'] ?? [];
 if (!is_array($status_filter)) {
     $status_filter = $status_filter !== '' ? [$status_filter] : [];
@@ -163,30 +279,70 @@ $filtered_students = array_filter($students, function($student) use ($status_fil
 
 // Fetch Main Topic Quizzes for the table section
 if (!empty($quiz_filter)) {
-    $stmt_main_q = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE id = ? AND (subtopic_name IS NULL OR subtopic_name = '')");
-    $stmt_main_q->execute([$quiz_filter]);
+    $stmt_main_q = $pdo->prepare("
+        SELECT id, question, subtopic_name
+        FROM chapter_quizzes
+        WHERE chapter_name = ?
+          AND (subtopic_name IS NULL OR subtopic_name = '')
+    ");
+    $stmt_main_q->execute([$table_chapter]);
 } else {
-    $stmt_main_q = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE chapter_name = ? AND (subtopic_name IS NULL OR subtopic_name = '') ORDER BY id ASC");
+    $stmt_main_q = $pdo->prepare("
+        SELECT id, question, subtopic_name
+        FROM chapter_quizzes
+        WHERE chapter_name = ?
+          AND (subtopic_name IS NULL OR subtopic_name = '')
+        ORDER BY id ASC
+    ");
     $stmt_main_q->execute([$table_chapter]);
 }
 $table_main_quizzes = $stmt_main_q->fetchAll(PDO::FETCH_ASSOC);
-
 // Fetch Subtopic Quizzes for the table section
 if (!empty($quiz_filter)) {
-    $stmt_sub_q = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE id = ? AND subtopic_name IS NOT NULL AND subtopic_name != ''");
-    $stmt_sub_q->execute([$quiz_filter]);
+
+    // quiz_filter contains subtopic name, e.g. 1.1 or 1.2
+    $stmt_sub_q = $pdo->prepare("
+        SELECT id, question, subtopic_name
+        FROM chapter_quizzes
+        WHERE chapter_name = ?
+          AND subtopic_name = ?
+          AND subtopic_name IS NOT NULL
+          AND subtopic_name != ''
+        ORDER BY id ASC
+    ");
+
+    $stmt_sub_q->execute([
+        $table_chapter,
+        $quiz_filter
+    ]);
+
 } else {
-    $stmt_sub_q = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE chapter_name = ? AND subtopic_name IS NOT NULL AND subtopic_name != '' ORDER BY subtopic_name ASC, id ASC");
-    $stmt_sub_q->execute([$table_chapter]);
+
+    // Show all subtopics under the selected chapter
+    $stmt_sub_q = $pdo->prepare("
+        SELECT id, question, subtopic_name
+        FROM chapter_quizzes
+        WHERE chapter_name = ?
+          AND subtopic_name IS NOT NULL
+          AND subtopic_name != ''
+        ORDER BY subtopic_name ASC, id ASC
+    ");
+
+    $stmt_sub_q->execute([
+        $table_chapter
+    ]);
 }
+
 $table_sub_quizzes_raw = $stmt_sub_q->fetchAll(PDO::FETCH_ASSOC);
 
 $table_grouped_sub_quizzes = [];
+
 foreach ($table_sub_quizzes_raw as $q) {
     $table_grouped_sub_quizzes[$q['subtopic_name']][] = $q;
 }
 
 $total_displayed_quizzes = count($table_main_quizzes) + count($table_sub_quizzes_raw);
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -322,23 +478,61 @@ $total_displayed_quizzes = count($table_main_quizzes) + count($table_sub_quizzes
                         </div>
 
                         <div class="space-y-2">
-                            <?php
-                            try {
-                                $stmt_rank = $pdo->prepare("
-                                    SELECT s.name, COALESCE(SUM(sq.score), 0) as total_score 
-                                    FROM students s 
-                                    LEFT JOIN student_quiz_answers sq ON s.id = sq.student_id 
-                                    WHERE s.classroom_id = ? 
-                                    GROUP BY s.id, s.name 
-                                    ORDER BY total_score ASC 
-                                    LIMIT 5
-                                ");
-                                $stmt_rank->execute([$class_id]);
-                                $rankings = $stmt_rank->fetchAll(PDO::FETCH_ASSOC);
-                            } catch (Exception $e) {
-                                $rankings = [];
-                            }
-                            ?>
+<?php
+try {
+    $stmt_rank = $pdo->prepare("
+        SELECT
+            s.id,
+            s.name,
+            COUNT(DISTINCT cq.id) AS total_questions,
+            COALESCE(SUM(
+                CASE
+                    WHEN sa.type = 'Quiz' AND sq.is_correct = 1
+                    THEN 1
+                    ELSE 0
+                END
+            ), 0) AS correct_answers
+        FROM students s
+        LEFT JOIN student_quiz_answers sq
+            ON s.id = sq.student_id
+        LEFT JOIN student_assessments sa
+            ON sq.assessment_id = sa.id
+        LEFT JOIN chapter_quizzes cq
+            ON sq.quiz_id = cq.id
+        WHERE s.classroom_id = ?
+          AND (sa.type = 'Quiz' OR sa.type IS NULL)
+        GROUP BY s.id, s.name
+    ");
+
+    $stmt_rank->execute([$class_id]);
+    $ranking_rows = $stmt_rank->fetchAll(PDO::FETCH_ASSOC);
+
+    $rankings = [];
+
+    foreach ($ranking_rows as $row) {
+        $total_questions = (int)$row['total_questions'];
+        $correct_answers = (int)$row['correct_answers'];
+
+        $percentage = $total_questions > 0
+            ? round(($correct_answers / $total_questions) * 100)
+            : 0;
+
+        $rankings[] = [
+            'name' => $row['name'],
+            'percentage' => $percentage
+        ];
+    }
+
+    usort($rankings, function ($a, $b) {
+        return $b['percentage'] <=> $a['percentage'];
+    });
+
+    $rankings = array_slice($rankings, 0, 5);
+
+} catch (Exception $e) {
+    $rankings = [];
+}
+?>
 
                             <?php if (count($rankings) > 0): ?>
                                 <?php foreach ($rankings as $index => $student): ?>
@@ -349,9 +543,10 @@ $total_displayed_quizzes = count($table_main_quizzes) + count($table_sub_quizzes
                                             <span
                                                 class="font-semibold text-pastel-text truncate max-w-[110px]"><?php echo htmlspecialchars($student['name']); ?></span>
                                         </div>
-                                        <span
-                                            class="bg-rose-50 text-rose-700 font-bold px-1.5 py-0.5 rounded border border-rose-100"><?php echo intval($student['total_score']); ?>
-                                            pts</span>
+<span
+    class="bg-rose-50 text-rose-700 font-bold px-1.5 py-0.5 rounded border border-rose-100">
+    <?php echo intval($student['percentage']); ?>%
+</span>
                                     </div>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -446,16 +641,15 @@ $total_displayed_quizzes = count($table_main_quizzes) + count($table_sub_quizzes
                                 <?php endforeach; ?>
                             <?php endif; ?>
 
-                            <?php foreach ($table_grouped_sub_quizzes as $sub_name => $sub_qs): ?>
-                                <?php foreach ($sub_qs as $sq): ?>
-                                    <th class="py-3.5 px-6 text-center">
-                                        <a href="quiz_summary.php?quiz_id=<?php echo $sq['id']; ?>&classroom_id=<?php echo $class_id; ?>" 
-                                           class="hover:text-pastel-hover underline decoration-pastel-primary/50 underline-offset-4 transition">
-                                            <?php echo htmlspecialchars($sub_name); ?> (Q#<?php echo $sq['id']; ?>)
-                                        </a>
-                                    </th>
-                                <?php endforeach; ?>
-                            <?php endforeach; ?>
+<?php foreach ($table_grouped_sub_quizzes as $sub_name => $sub_qs): ?>
+    <th class="py-3.5 px-6 text-center">
+        <a href="quiz_summary.php?chapter=<?php echo urlencode($table_chapter); ?>&subtopic=<?php echo urlencode($sub_name); ?>&classroom_id=<?php echo $class_id; ?>"
+           class="hover:text-pastel-hover underline decoration-pastel-primary/50 underline-offset-4 transition">
+            <?php echo htmlspecialchars($sub_name); ?> Quiz
+        </a>
+    </th>
+<?php endforeach; ?>
+
 
                             <th class="py-3.5 px-6 text-center">Chapter Progress</th>
                             <th class="py-3.5 px-6 text-center">Action</th>
@@ -475,37 +669,49 @@ $total_displayed_quizzes = count($table_main_quizzes) + count($table_sub_quizzes
     foreach ($table_main_quizzes as $q) {
         // Look up via student_assessments or chapter evaluation logic
         $stmt_ans = $pdo->prepare("SELECT status FROM student_assessments WHERE student_id = ? AND title LIKE ?");
-        $stmt_ans->execute([$student['id'], '%' . $ch_name . '%']);
+        $stmt_ans->execute([$student['id'], '%' .$table_chapter . '%']);
         $ans_data = $stmt_ans->fetch(PDO::FETCH_ASSOC);
         $student_quiz_answers[$q['id']] = $ans_data ? $ans_data['status'] : 'Not Attempted';
     }
     foreach ($table_sub_quizzes_raw as $q) {
         $stmt_ans = $pdo->prepare("SELECT status FROM student_assessments WHERE student_id = ? AND title LIKE ?");
-        $stmt_ans->execute([$student['id'], '%' . $ch_name . '%']);
+        $stmt_ans->execute([$student['id'], '%' .$table_chapter . '%']);
         $ans_data = $stmt_ans->fetch(PDO::FETCH_ASSOC);
         $student_quiz_answers[$q['id']] = $ans_data ? $ans_data['status'] : 'Not Attempted';
     }
 }
 
-                            $stmt_prog_cnt = $pdo->prepare("
-    SELECT COUNT(DISTINCT sq.id) 
-    FROM student_quiz_answers sq 
-    JOIN student_assessments sa ON sq.assessment_id = sa.id 
-    WHERE sa.student_id = ? AND sa.title LIKE ? AND sq.is_correct = 1
+$stmt_prog_cnt = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM student_quiz_answers sq
+    JOIN student_assessments sa
+        ON sq.assessment_id = sa.id
+    JOIN chapter_quizzes cq
+        ON sq.quiz_id = cq.id
+    WHERE sa.student_id = ?
+      AND sa.type = 'Quiz'
+      AND cq.chapter_name = ?
+      AND sq.is_correct = 1
 ");
-$stmt_prog_cnt->execute([$student['id'], '%' . $table_chapter . '%']);
-$completed_quiz_count = $stmt_prog_cnt->fetchColumn() ?: 0;
-$chapter_percentage = $chapter_total_quiz_count > 0 ? round(($completed_quiz_count / $chapter_total_quiz_count) * 100) : 0;
+
+$stmt_prog_cnt->execute([
+    $student['id'],
+    $table_chapter
+]);
+
+$completed_quiz_count = (int)$stmt_prog_cnt->fetchColumn();
+
+$chapter_percentage = $chapter_total_quiz_count > 0
+    ? round(($completed_quiz_count / $chapter_total_quiz_count) * 100)
+    : 0;
+
                             ?>
                             <tr class="hover:bg-pastel-bg/50 transition">
                                 <td class="py-4 px-6 font-medium text-pastel-text">
                                     <?php echo htmlspecialchars($student['name']); ?>
                                 </td>
                                 <td class="py-4 px-6">
-                                    <span
-                                        class="text-xs font-medium px-3 py-1 rounded-full <?php echo in_array($student['status'], ['Struggling', 'Needs Help']) ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-pastel-badge text-pastel-hover'; ?>">
-                                        <?php echo $student['status']; ?>
-                                    </span>
+<?= htmlspecialchars($student['status']) ?>
                                 </td>
 
                                 <?php if (!$isUnlocked): ?>
@@ -546,27 +752,69 @@ $chapter_percentage = $chapter_total_quiz_count > 0 ? round(($completed_quiz_cou
                                         <?php endforeach; ?>
                                     <?php endif; ?>
 
-                                    <?php foreach ($table_grouped_sub_quizzes as $sub_name => $sub_qs): ?>
-                                        <?php foreach ($sub_qs as $q): ?>
-                                            <?php $status = $student_quiz_answers[$q['id']] ?? 'Pending'; ?>
-                                            <td class="py-4 px-6 text-center">
-                                                <div class="inline-flex items-center justify-center px-3 py-1 rounded-xl text-xs font-semibold shadow-2xs
-                                                <?php
-                                                if ($status === 'Correct' || $status === 'Completed') {
-                                                    echo 'bg-emerald-100 text-emerald-700 border border-emerald-200';
-                                                } elseif ($status === 'Attempted') {
-                                                    echo 'bg-amber-100 text-amber-700 border border-amber-200';
-                                                } elseif ($status === 'Incorrect' || $status === 'Failed') {
-                                                    echo 'bg-rose-100 text-rose-700 border border-rose-200';
-                                                } else {
-                                                    echo 'bg-slate-100 text-slate-500 border border-slate-200';
-                                                }
-                                                ?>">
-                                                    <?php echo htmlspecialchars($sub_name); ?>: <?php echo htmlspecialchars($status); ?>
-                                                </div>
-                                            </td>
-                                        <?php endforeach; ?>
-                                    <?php endforeach; ?>
+<?php foreach ($table_grouped_sub_quizzes as $sub_name => $sub_qs): ?>
+
+    <?php
+    $subtopic_title = 'Subtopic ' . $sub_name . ' Assessment';
+
+    $stmt_sub_result = $pdo->prepare("
+        SELECT score, status
+        FROM student_assessments
+        WHERE student_id = ?
+          AND title = ?
+          AND type = 'Quiz'
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+
+    $stmt_sub_result->execute([
+        $student['id'],
+        $subtopic_title
+    ]);
+
+    $sub_result = $stmt_sub_result->fetch(PDO::FETCH_ASSOC);
+if ($sub_result) {
+    $status = $sub_result['status'];
+    $score_text = $sub_result['score'];
+} else {
+    $status = 'Not Attempt';
+    $score_text = '';
+}
+
+    ?>
+
+    <td class="py-4 px-6 text-center">
+
+        <div class="inline-flex flex-col items-center justify-center px-3 py-2 rounded-xl text-xs font-semibold shadow-2xs
+        <?php
+        if ($status === 'Completed' || $status === 'Mastered') {
+            echo 'bg-emerald-100 text-emerald-700 border border-emerald-200';
+        } elseif ($status === 'Incorrect' || $status === 'Failed') {
+            echo 'bg-rose-100 text-rose-700 border border-rose-200';
+} elseif ($status === 'Available') {
+    echo 'bg-slate-100 text-slate-500 border border-slate-200';
+    
+        } else {
+            echo 'bg-amber-100 text-amber-700 border border-amber-200';
+        }
+        ?>">
+
+            <span>
+                <?php echo htmlspecialchars($status); ?>
+            </span>
+
+            <?php if ($score_text !== ''): ?>
+                <span class="text-[10px] mt-0.5 opacity-80">
+                    <?php echo htmlspecialchars($score_text); ?>
+                </span>
+            <?php endif; ?>
+
+        </div>
+
+    </td>
+
+<?php endforeach; ?>
+
 
                                     <td class="py-4 px-6 text-center">
                                         <span
@@ -578,12 +826,18 @@ $chapter_percentage = $chapter_total_quiz_count > 0 ? round(($completed_quiz_cou
 
                                 <td class="py-4 px-6 text-center">
                                     <div class="flex items-center justify-center space-x-2">
-                                        <button type="button"
-                                            onclick="openFeedbackModal(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['name'], ENT_QUOTES); ?>')"
-                                            title="Give Feedback"
-                                            class="px-2.5 h-8 bg-white hover:bg-pastel-badge text-pastel-text hover:text-pastel-hover border border-blue-100 rounded-lg flex items-center justify-center transition shadow-sm text-xs font-semibold">
-                                            Feedback
-                                        </button>
+<button type="button"
+    onclick="openFeedbackModal(
+        <?php echo $student['id']; ?>,
+        '<?php echo htmlspecialchars($student['name'], ENT_QUOTES); ?>',
+        '<?php echo htmlspecialchars($table_chapter, ENT_QUOTES); ?>',
+        '<?php echo htmlspecialchars($quiz_filter, ENT_QUOTES); ?>'
+    )"
+
+    title="Give Feedback"
+    class="px-2.5 h-8 bg-white hover:bg-pastel-badge text-pastel-text hover:text-pastel-hover border border-blue-100 rounded-lg flex items-center justify-center transition shadow-sm text-xs font-semibold">
+    Feedback
+</button>
 
                                         <a href="upload_resource.php?student_id=<?php echo htmlspecialchars($student['id']); ?>"
                                             title="Upload Extra Resource"
@@ -641,22 +895,37 @@ $chapter_percentage = $chapter_total_quiz_count > 0 ? round(($completed_quiz_cou
                                 class="border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
                             <span>All Topics (Default)</span>
                         </label>
+<?php
+$stmt_distinct_subs = $pdo->prepare("
+    SELECT DISTINCT subtopic_name
+    FROM chapter_quizzes
+    WHERE chapter_name = ?
+      AND subtopic_name IS NOT NULL
+      AND subtopic_name != ''
+    ORDER BY subtopic_name ASC
+");
+$stmt_distinct_subs->execute([$table_chapter]);
+$all_subtopics = $stmt_distinct_subs->fetchAll(PDO::FETCH_COLUMN);
+?>
 
-                        <?php 
-                        $stmt_distinct_subs = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE chapter_name = ? ORDER BY id ASC");
-                        $stmt_distinct_subs->execute([$table_chapter]);
-                        $all_q_list = $stmt_distinct_subs->fetchAll(PDO::FETCH_ASSOC);
-                        ?>
-                        <?php foreach ($all_q_list as $q_item): 
-                            $q_label = !empty($q_item['subtopic_name']) ? $q_item['subtopic_name'] . ' (Q#' . $q_item['id'] . ')' : 'Main Topic Quiz (Q#' . $q_item['id'] . ')';
-                            $isQuizChecked = (isset($_GET['quiz_filter']) && $_GET['quiz_filter'] == $q_item['id']) ? 'checked' : '';
-                        ?>
-                            <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer pt-1">
-                                <input type="radio" name="quiz_filter" value="<?php echo $q_item['id']; ?>" <?php echo $isQuizChecked; ?>
-                                    class="border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
-                                <span><?php echo htmlspecialchars($q_label); ?></span>
-                            </label>
-                        <?php endforeach; ?>
+<?php foreach ($all_subtopics as $subtopic): 
+    $isQuizChecked = (
+        isset($_GET['quiz_filter']) &&
+        $_GET['quiz_filter'] === $subtopic
+    ) ? 'checked' : '';
+?>
+    <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer pt-1">
+        <input
+            type="radio"
+            name="quiz_filter"
+            value="<?php echo htmlspecialchars($subtopic); ?>"
+            <?php echo $isQuizChecked; ?>
+            class="border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
+
+        <span><?php echo htmlspecialchars($subtopic); ?></span>
+    </label>
+<?php endforeach; ?>
+
                     </div>
                 </div>
 
@@ -664,7 +933,7 @@ $chapter_percentage = $chapter_total_quiz_count > 0 ? round(($completed_quiz_cou
                     <label class="block text-xs font-semibold text-slate-500 mb-1.5">Select Statuses:</label>
                     <div class="space-y-2 bg-pastel-bg/30 p-3 rounded-xl border border-blue-50">
                         <?php 
-                        $available_statuses = ['Mastering', 'On Track', 'Struggling'];
+$available_statuses = ['Mastering', 'On Track', 'Struggling', 'Not Attempted'];
                         foreach ($available_statuses as $st):
                             $isChecked = in_array($st, $status_filter) ? 'checked' : '';
                         ?>
@@ -808,49 +1077,170 @@ $chapter_percentage = $chapter_total_quiz_count > 0 ? round(($completed_quiz_cou
         }
     </script>
 
-    <!-- Pop-up Feedback Container -->
-    <div id="quickFeedbackModal"
-        class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
-        <div
-            class="bg-white rounded-2xl shadow-xl border border-blue-100 max-w-md w-full overflow-hidden transform transition-all">
-            <div class="p-4 border-b border-blue-100 flex justify-between items-center bg-pastel-bg/50">
-                <h3 class="text-sm font-bold text-pastel-text">Feedback for <span id="feedbackStudentName"></span></h3>
-                <button type="button" onclick="closeFeedbackModal()"
-                    class="text-slate-400 hover:text-slate-600 font-bold text-base px-2 py-1 rounded-lg">&times;</button>
+<!-- Pop-up Quiz Feedback Container -->
+<div id="quickFeedbackModal"
+    class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+
+    <div
+        class="bg-white rounded-2xl shadow-xl border border-blue-100 max-w-md w-full overflow-hidden transform transition-all">
+
+        <div class="p-4 border-b border-blue-100 flex justify-between items-center bg-pastel-bg/50">
+            <div>
+                <h3 class="text-sm font-bold text-pastel-text">
+                    Quiz Feedback
+                </h3>
+
+                <p class="text-[10px] text-slate-400 mt-0.5">
+                    Give feedback for a specific quiz/subtopic
+                </p>
             </div>
-            <form method="POST" action="../tools/save_feedback.php" class="p-5 space-y-4">
-                <input type="hidden" name="student_id" id="feedbackStudentId">
-                <input type="hidden" name="classroom_id" value="<?php echo $class_id; ?>">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1">Teacher Remarks / Advice</label>
-                    <textarea name="teacher_feedback" rows="3" required placeholder="Write personalized feedback..."
-                        class="w-full text-xs p-2.5 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary"></textarea>
-                </div>
-                <div class="flex justify-end space-x-2">
-                    <button type="button" onclick="closeFeedbackModal()"
-                        class="text-xs font-semibold px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-                    <button type="submit"
-                        class="text-xs font-semibold px-4 py-2 rounded-xl bg-pastel-primary text-white hover:bg-pastel-hover transition">Save
-                        Feedback</button>
-                </div>
-            </form>
+
+            <button type="button"
+                onclick="closeFeedbackModal()"
+                class="text-slate-400 hover:text-slate-600 font-bold text-base px-2 py-1 rounded-lg">
+                &times;
+            </button>
         </div>
+
+        <form method="POST"
+            action="../tools/save_quiz_feedback.php"
+            class="p-5 space-y-4">
+<input type="hidden"
+    name="classroom_id"
+    value="<?php echo $class_id; ?>">
+
+<input type="hidden"
+    name="student_id"
+    id="feedbackStudentId">
+
+<input type="hidden"
+    name="chapter_name"
+    id="feedbackChapter">
+
+<!-- Student -->
+<div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1.5">
+        Student
+    </label>
+
+    <input type="text"
+        id="feedbackStudentDisplay"
+        readonly
+        class="w-full text-xs px-3 py-2 rounded-xl border border-blue-100 bg-slate-50 text-slate-600 font-semibold">
+</div>
+
+<!-- Chapter -->
+<div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1.5">
+        Chapter
+    </label>
+
+    <input type="text"
+        id="feedbackChapterDisplay"
+        readonly
+        class="w-full text-xs px-3 py-2 rounded-xl border border-blue-100 bg-slate-50 text-slate-600 font-semibold">
+</div>
+
+            <!-- Quiz / Subtopic -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1.5">
+                    Select Topic / Subtopic
+                </label>
+
+                <select name="subtopic_name"
+                    id="feedbackSubtopic"
+                    required
+                    class="w-full text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 font-semibold text-pastel-text focus:outline-none focus:border-pastel-primary">
+
+                    <option value="">Select a quiz</option>
+
+                    <?php
+                    $stmt_feedback_quizzes = $pdo->prepare("
+                        SELECT DISTINCT subtopic_name
+                        FROM chapter_quizzes
+                        WHERE chapter_name = ?
+                          AND subtopic_name IS NOT NULL
+                          AND subtopic_name != ''
+                        ORDER BY subtopic_name ASC
+                    ");
+
+                    $stmt_feedback_quizzes->execute([$table_chapter]);
+
+                    $feedback_quizzes = $stmt_feedback_quizzes->fetchAll(PDO::FETCH_COLUMN);
+                    ?>
+
+                    <?php foreach ($feedback_quizzes as $feedback_quiz): ?>
+                        <option value="<?php echo htmlspecialchars($feedback_quiz); ?>">
+                            <?php echo htmlspecialchars($feedback_quiz); ?> Quiz
+                        </option>
+                    <?php endforeach; ?>
+
+                </select>
+            </div>
+
+            <!-- Feedback -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">
+                    Teacher Remarks / Advice
+                </label>
+
+                <textarea
+                    name="teacher_feedback"
+                    rows="4"
+                    required
+                    placeholder="Write feedback for this quiz/subtopic..."
+                    class="w-full text-xs p-2.5 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary"></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-2">
+
+                <button type="button"
+                    onclick="closeFeedbackModal()"
+                    class="text-xs font-semibold px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+                    Cancel
+                </button>
+
+                <button type="submit"
+                    class="text-xs font-semibold px-4 py-2 rounded-xl bg-pastel-primary text-white hover:bg-pastel-hover transition">
+                    Save Feedback
+                </button>
+
+            </div>
+
+        </form>
     </div>
+</div>
 
-    <script>
-        function openFeedbackModal(studentId, studentName) {
-            document.getElementById('feedbackStudentId').value = studentId;
-            document.getElementById('feedbackStudentName').innerText = studentName;
-            const modal = document.getElementById('quickFeedbackModal');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        }
+<script>
+function openFeedbackModal(studentId, studentName, chapterName, subtopicName) {
 
-        function closeFeedbackModal() {
-            const modal = document.getElementById('quickFeedbackModal');
-            modal.classList.remove('flex');
-            modal.classList.add('hidden');
-        }
-    </script>
+    document.getElementById('feedbackStudentId').value = studentId;
+    document.getElementById('feedbackStudentDisplay').value = studentName;
+
+    document.getElementById('feedbackChapter').value = chapterName;
+    document.getElementById('feedbackChapterDisplay').value = chapterName;
+
+    const subtopicSelect = document.getElementById('feedbackSubtopic');
+
+    if (subtopicName && subtopicName.trim() !== '') {
+        subtopicSelect.value = subtopicName;
+    } else {
+        subtopicSelect.value = '';
+    }
+
+    const modal = document.getElementById('quickFeedbackModal');
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeFeedbackModal() {
+    const modal = document.getElementById('quickFeedbackModal');
+
+    modal.classList.remove('flex');
+    modal.classList.add('hidden');
+}
+</script>
+
 </body>
 </html>

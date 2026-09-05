@@ -30,53 +30,88 @@ $classroom_id = $student['classroom_id'] ?? 1;
 // Handle AJAX submission of quiz answers
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'submit_quiz') {
     header('Content-Type: application/json');
-    
-    $chapter_num = $_POST['chapter_num'] ?? 1;
-    $subtopic_num = $_POST['subtopic_num'] ?? 1;
+
+    $chapter_num = (int)($_POST['chapter_num'] ?? 1);
+    $subtopic_num = $_POST['subtopic_num'] ?? '1';
     $chapter_name = $_POST['chapter_name'] ?? '';
-    $answers = $_POST['answers'] ?? []; // format: [q_id => selected_option]
+    $answers = $_POST['answers'] ?? [];
 
-    $quiz_set_id = 'sub_' . $chapter_num . '_' . str_replace('.', '_', $subtopic_num);
+    $assessment_title = 'Subtopic ' . $subtopic_num . ' Assessment';
 
-    // Check if already attempted
     try {
-        $stmt_check = $pdo->prepare("SELECT id FROM student_quiz_history WHERE student_id = ? AND quiz_id = ?");
-        $stmt_check->execute([$student_id, $quiz_set_id]);
-        if ($stmt_check->fetch()) {
-            echo json_encode(['status' => 'error', 'message' => 'Quiz already submitted.']);
+        // Check whether this quiz has already been attempted
+        $stmt_check = $pdo->prepare("
+            SELECT id
+            FROM student_assessments
+            WHERE student_id = ?
+              AND island_id = ?
+              AND title = ?
+              AND type = 'Quiz'
+            ORDER BY id DESC
+            LIMIT 1
+        ");
+
+        $stmt_check->execute([
+            $student_id,
+            $chapter_num,
+            $assessment_title
+        ]);
+
+        $existing_assessment = $stmt_check->fetch(PDO::FETCH_ASSOC);
+
+        // One quiz can only be attempted once
+        if ($existing_assessment) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Quiz already submitted. You cannot re-attempt this quiz.',
+                'already_completed' => true
+            ]);
             exit;
         }
-    } catch (Exception $e) {
-        // Table might differ, attempt safe fallback or creation
-    }
 
-    // Fetch questions to evaluate score & store response
-    try {
-        $stmt_q = $pdo->prepare("SELECT * FROM chapter_quizzes WHERE chapter_name = ?");
-        $stmt_q->execute([$chapter_name]);
-        $all_q = $stmt_q->fetchAll(PDO::FETCH_ASSOC);
+        // Get questions for this exact subtopic
+        $stmt_q = $pdo->prepare("
+            SELECT *
+            FROM chapter_quizzes
+            WHERE chapter_name = ?
+              AND subtopic_name = ?
+            ORDER BY id ASC
+        ");
 
-        $subtopic_questions = [];
-        foreach ($all_q as $q) {
-            $q_sub = $q['subtopic_name'] ?? null;
-            if ($q_sub !== null && ((string)$q_sub === (string)$subtopic_num)) {
-                $subtopic_questions[] = $q;
-            }
-        }
+        $stmt_q->execute([
+            $chapter_name,
+            $subtopic_num
+        ]);
+
+        $subtopic_questions = $stmt_q->fetchAll(PDO::FETCH_ASSOC);
+
         if (empty($subtopic_questions)) {
-            $subtopic_questions = $all_q; // fallback
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'No quiz questions found for this subtopic.'
+            ]);
+            exit;
         }
 
         $correctCount = 0;
         $totalQuestions = count($subtopic_questions);
         $detailed_results = [];
 
+        // Check answers
         foreach ($subtopic_questions as $q) {
-            $qId = $q['id'];
-            $correctOpt = strtolower($q['correct_option'] ?? $q['answer'] ?? 'a');
-            $userAns = isset($answers[$qId]) ? strtolower($answers[$qId]) : '';
-            
-            $is_correct = ($userAns === $correctOpt);
+            $qId = (int)$q['id'];
+
+            $correctOpt = strtolower(trim($q['correct_option'] ?? ''));
+
+            $userAns = isset($answers[$qId])
+                ? strtolower(trim($answers[$qId]))
+                : '';
+
+            $is_correct = (
+                $userAns !== '' &&
+                $userAns === $correctOpt
+            );
+
             if ($is_correct) {
                 $correctCount++;
             }
@@ -84,46 +119,167 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $detailed_results[$qId] = [
                 'user_answer' => $userAns,
                 'correct_answer' => $correctOpt,
-                'is_correct' => $is_correct
+                'is_correct' => $is_correct,
+                'explanation' => $q['explanation'] ?? 'No explanation provided for this question.'
             ];
         }
 
-        $score = $totalQuestions > 0 ? ($correctCount / $totalQuestions) * 100 : 0;
-        $answers_json = json_encode($detailed_results);
+        $score = $totalQuestions > 0
+            ? ($correctCount / $totalQuestions) * 100
+            : 0;
 
-        // Save into student_quiz_history
-        $stmt_save = $pdo->prepare("INSERT INTO student_quiz_history (student_id, quiz_id, score, status, answers_data, created_at) VALUES (?, ?, ?, 'completed', ?, NOW())");
-        $stmt_save->execute([$student_id, $quiz_set_id, $score, $answers_json]);
+        $score_text = $correctCount . '/' . $totalQuestions;
 
-echo json_encode([
-    'status' => 'success',
-    'correct_count' => $correctCount,
-    'total_questions' => $totalQuestions,
-    'score' => round($score),
-    'answers' => $detailed_results
-]);
+        // Save assessment + answers together
+        $pdo->beginTransaction();
+
+        // Save assessment
+        $stmt_save_assessment = $pdo->prepare("
+            INSERT INTO student_assessments
+            (student_id, island_id, title, type, score, status)
+            VALUES (?, ?, ?, 'Quiz', ?, 'Completed')
+        ");
+
+        $stmt_save_assessment->execute([
+            $student_id,
+            $chapter_num,
+            $assessment_title,
+            $score_text
+        ]);
+
+        $assessment_id = (int)$pdo->lastInsertId();
+
+        // Save each question answer
+        $stmt_save_answer = $pdo->prepare("
+            INSERT INTO student_quiz_answers
+            (
+                assessment_id,
+                student_id,
+                quiz_id,
+                question_text,
+                student_answer,
+                correct_answer,
+                is_correct,
+                explanation,
+                answer_status,
+                score
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        foreach ($subtopic_questions as $q) {
+            $qId = (int)$q['id'];
+            $result = $detailed_results[$qId];
+
+            $stmt_save_answer->execute([
+                $assessment_id,
+                $student_id,
+                $qId,
+                $q['question'],
+                $result['user_answer'],
+                $result['correct_answer'],
+                $result['is_correct'] ? 1 : 0,
+                $result['explanation'],
+                $result['is_correct'] ? 'Correct' : 'Incorrect',
+                $result['is_correct'] ? 1 : 0
+            ]);
+        }
+
+        $pdo->commit();
+
+        echo json_encode([
+            'status' => 'success',
+            'correct_count' => $correctCount,
+            'total_questions' => $totalQuestions,
+            'score' => round($score),
+            'answers' => $detailed_results
+        ]);
 
     } catch (Exception $e) {
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        echo json_encode([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ]);
     }
+
     exit;
 }
 
 // Fetch student quiz completion history & saved answers data
 $completed_quizzes_data = [];
+
 try {
-    $stmt_history = $pdo->prepare("SELECT quiz_id, answers_data, score FROM student_quiz_history WHERE student_id = ? AND status = 'completed'");
+    // Get all quiz assessments completed by this student
+    $stmt_history = $pdo->prepare("
+        SELECT id, island_id, title, score, status
+        FROM student_assessments
+        WHERE student_id = ?
+          AND type = 'Quiz'
+    ");
+
     $stmt_history->execute([$student_id]);
-    $history_rows = $stmt_history->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($history_rows as $row) {
-        $completed_quizzes_data[$row['quiz_id']] = [
-            'score' => $row['score'],
-            'answers' => json_decode($row['answers_data'], true)
-        ];
+
+    $assessment_rows = $stmt_history->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($assessment_rows as $assessment) {
+
+        // Example:
+        // Subtopic 1.1 Assessment
+        // Subtopic 1.2 Assessment
+        if (preg_match('/^Subtopic (.+) Assessment$/', $assessment['title'], $matches)) {
+
+            $subtopic_val = $matches[1];
+
+            $quiz_set_id =
+                'sub_' .
+                $assessment['island_id'] .
+                '_' .
+                str_replace('.', '_', $subtopic_val);
+
+            // Get saved answers for this assessment
+            $stmt_answers = $pdo->prepare("
+                SELECT
+                    quiz_id,
+                    question_text,
+                    student_answer,
+                    correct_answer,
+                    is_correct,
+                    explanation
+                FROM student_quiz_answers
+                WHERE assessment_id = ?
+                ORDER BY id ASC
+            ");
+
+            $stmt_answers->execute([$assessment['id']]);
+
+            $answers = [];
+
+            foreach ($stmt_answers->fetchAll(PDO::FETCH_ASSOC) as $answer) {
+
+                $answers[$answer['quiz_id']] = [
+                    'user_answer' => strtolower($answer['student_answer']),
+                    'correct_answer' => strtolower($answer['correct_answer']),
+                    'is_correct' => (bool)$answer['is_correct'],
+                    'explanation' => $answer['explanation']
+                ];
+            }
+
+            $completed_quizzes_data[$quiz_set_id] = [
+                'score' => $assessment['score'],
+                'answers' => $answers
+            ];
+        }
     }
+
 } catch (Exception $e) {
     $completed_quizzes_data = [];
 }
+
 $completed_quiz_ids = array_keys($completed_quizzes_data);
 
 // 1. Fetch only chapters unlocked for this specific classroom
@@ -245,28 +401,60 @@ if (empty($db_chapters)) {
                 }
             }
 
+            // Fetch teacher feedback for this subtopic
+$teacher_feedback = null;
+
+try {
+    $stmt_feedback = $pdo->prepare("
+        SELECT comment
+        FROM teacher_quiz_feedback
+        WHERE student_id = ?
+          AND chapter_name = ?
+          AND subtopic_name = ?
+        ORDER BY id DESC
+        LIMIT 1
+    ");
+
+    $stmt_feedback->execute([
+        $student_id,
+        $chapter_name,
+        $subtopic_num
+    ]);
+
+    $feedback_row = $stmt_feedback->fetch(PDO::FETCH_ASSOC);
+
+    if ($feedback_row) {
+        $teacher_feedback = $feedback_row['comment'];
+    }
+
+} catch (Exception $e) {
+    $teacher_feedback = null;
+}
+
+
             $quiz_set_id = 'sub_' . $chapter_num . '_' . str_replace('.', '_', $subtopic_num);
             $is_completed = in_array($quiz_set_id, $completed_quiz_ids);
             $status = $is_completed ? 'Completed' : 'Available';
             $badge_color = $is_completed ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700';
+$subtopics[(string)$current_subtopic_idx] = [
+    'title' => $material_title,
+    'badge_color' => $badge_color,
+    'status' => $status,
+    'is_completed' => $is_completed,
+    'saved_data' => $is_completed ? $completed_quizzes_data[$quiz_set_id] : null,
+    'teacher_feedback' => $teacher_feedback,
+    'notes' => [
+        'overview' => 'Learning material provided by your teacher for this chapter.',
+        'points' => ['Read the material carefully and click the quizzes tab above when ready to test your knowledge.'],
+        'example' => $file_path ? '<a class="text-pastel-primary font-bold underline" href="' . htmlspecialchars($file_path, ENT_QUOTES, 'UTF-8') . '" target="_blank">Open teacher material</a>' : 'No file attached.'
+    ],
+    'questions' => $subtopic_questions,
+    'chapter_num' => $chapter_num,
+    'subtopic_name_val' => $chapter_name,
+    'subtopic_num' => $subtopic_num,
+    'additional_resources' => $subtopic_resources
+];
 
-            $subtopics[(string)$current_subtopic_idx] = [
-                'title' => $material_title,
-                'badge_color' => $badge_color,
-                'status' => $status,
-                'is_completed' => $is_completed,
-                'saved_data' => $is_completed ? $completed_quizzes_data[$quiz_set_id] : null,
-                'notes' => [
-                    'overview' => 'Learning material provided by your teacher for this chapter.',
-                    'points' => ['Read the material carefully and click the quizzes tab above when ready to test your knowledge.'],
-                    'example' => $file_path ? '<a class="text-pastel-primary font-bold underline" href="' . htmlspecialchars($file_path, ENT_QUOTES, 'UTF-8') . '" target="_blank">Open teacher material</a>' : 'No file attached.'
-                ],
-                'questions' => $subtopic_questions,
-                'chapter_num' => $chapter_num,
-                'subtopic_name_val' => $chapter_name,
-                'subtopic_num' => $subtopic_num,
-                'additional_resources' => $subtopic_resources
-            ];
         }
 
         if (empty($subtopics)) {
@@ -279,6 +467,7 @@ if (empty($db_chapters)) {
                 'status' => $is_chap_completed ? 'Completed' : 'Available',
                 'is_completed' => $is_chap_completed,
                 'saved_data' => $is_chap_completed ? $completed_quizzes_data[$chap_quiz_id] : null,
+                'teacher_feedback' => null,
                 'notes' => [
                     'overview' => 'Chapter content from your teacher.',
                     'points' => ['Check the chapter materials for this topic.'],
@@ -413,7 +602,7 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
                         📖 Notes
                     </button>
                     <button type="button" onclick="switchTab('lessons')" id="tab-btn-lessons" class="pb-3 text-base font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition whitespace-nowrap">
-                        ✏️ Quizzes
+                        ✏️ Lessons
                     </button>
                     <button type="button" onclick="switchTab('resources')" id="tab-btn-resources" class="pb-3 text-base font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition whitespace-nowrap">
                         🔗 Additional Resources <span id="resource-badge-count" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 font-bold hidden"></span>
@@ -436,26 +625,48 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
                     </div>
                 </div>
 
-                <!-- Quizzes View -->
-                <div id="view-lessons" class="hidden space-y-6">
-                    <div id="quiz-form" class="space-y-6">
-                        <input type="hidden" id="form-chapter" value="">
-                        <input type="hidden" id="form-subtopic" value="">
-                        
-<div id="quiz-submit-btn-wrapper" class="flex flex-col pt-4 hidden">
-    <!-- Injected via JavaScript below -->
+<!-- Quizzes View -->
+<div id="view-lessons" class="hidden space-y-6">
+
+    <!-- Teacher Feedback -->
+    <div id="teacher-feedback-box" class="hidden p-5 rounded-2xl bg-amber-50 border border-amber-200">
+        <div class="flex items-center gap-2 mb-2">
+            <span class="text-lg">💬</span>
+            <h3 class="text-sm font-extrabold text-amber-800">
+                Teacher Feedback
+            </h3>
+        </div>
+
+        <p id="teacher-feedback-text"
+           class="text-sm text-amber-900 leading-relaxed"></p>
+    </div>
+
+    <div id="quiz-form" class="space-y-6">
+
+    <input type="hidden" id="form-chapter" value="">
+    <input type="hidden" id="form-subtopic" value="">
+
+    <!-- Result at the top -->
+    <div id="quiz-result-summary"
+         class="hidden mb-6 p-6 rounded-2xl bg-white border border-blue-100 shadow-sm text-center space-y-3">
+    </div>
+
+    <!-- Questions -->
+    <div id="quiz-questions-container" class="space-y-6">
+        <!-- Populated dynamically via JS -->
+    </div>
+
+    <!-- Submit button at the bottom -->
+    <div id="quiz-submit-btn-wrapper" class="flex flex-col pt-4 hidden">
+        <!-- Injected via JavaScript below -->
+    </div>
 </div>
 
-<div id="quiz-questions-container" class="space-y-6">
-    <!-- Populated dynamically via JS -->
-</div>
-
-                    </div>
                 </div>
 
                 <!-- Additional Resources View -->
                 <div id="view-resources" class="hidden space-y-4">
-                    <p class="text-base text-slate-500 mb-2">Optional supplementary materials provided by your teacher:</p>
+                    <p class="text-base text-slate-500 mb-2">Optional supplementary materials</p>
                     <div id="resources-list" class="space-y-3"></div>
                 </div>
 
@@ -521,6 +732,18 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
             const data = subtopicData[selectedKey];
             if (!data) return;
             
+            // Render Teacher Feedback
+const feedbackBox = document.getElementById('teacher-feedback-box');
+const feedbackText = document.getElementById('teacher-feedback-text');
+
+if (data.teacher_feedback && data.teacher_feedback.trim() !== '') {
+    feedbackText.innerText = data.teacher_feedback;
+    feedbackBox.classList.remove('hidden');
+} else {
+    feedbackText.innerText = '';
+    feedbackBox.classList.add('hidden');
+}
+
             document.getElementById('note-overview').innerText = data.notes.overview;
             
             const pointsList = document.getElementById('note-points');
@@ -548,12 +771,14 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
                 const savedAnswers = savedData.answers || {};
 
                 if (!isCompleted) {
-                    submitBtnWrapper.innerHTML = `
-                        <button type="button" id="submit-quiz-btn" class="px-8 py-3.5 bg-pastel-primary hover:bg-pastel-hover text-white font-bold rounded-2xl shadow-sm transition text-base w-full">
-                            Submit Quiz Answers →
-                        </button>
-                        <div id="quiz-result-summary" class="hidden mt-6 p-6 rounded-2xl bg-white border border-blue-100 shadow-sm text-center space-y-3"></div>
-                    `;
+submitBtnWrapper.innerHTML = `
+    <button type="button"
+            id="submit-quiz-btn"
+            class="w-full bg-pastel-primary text-white py-3 rounded-xl font-bold hover:opacity-90 transition">
+        Submit Quiz Answers →
+    </button>
+`;
+
                 } else {
                     // Already completed state: render locked results summary immediately
                     let correctCount = 0;
