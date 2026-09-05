@@ -1,34 +1,33 @@
 <?php
-// setup.php
 require_once 'db.php';
 
-// Drop tables if they exist (MySQL syntax)
+// Drop tables if they exist
 $pdo->exec("DROP TABLE IF EXISTS student_progress;");
 $pdo->exec("DROP TABLE IF EXISTS students;");
 $pdo->exec("DROP TABLE IF EXISTS classrooms;");
 
-// Create tables with MySQL AUTO_INCREMENT syntax
+// Create tables with SQLite syntax
 $pdo->exec("CREATE TABLE classrooms (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    avg_mastery VARCHAR(50) NOT NULL
-) ENGINE=InnoDB;");
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    avg_mastery TEXT NOT NULL
+);");
 
 $pdo->exec("CREATE TABLE students (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    classroom_id INT,
-    name VARCHAR(255) NOT NULL,
-    status VARCHAR(50) NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    classroom_id INTEGER,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL,
     FOREIGN KEY(classroom_id) REFERENCES classrooms(id)
-) ENGINE=InnoDB;");
+);");
 
 $pdo->exec("CREATE TABLE student_progress (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_id INT,
-    chapter_name VARCHAR(255) NOT NULL,
-    level INT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER,
+    chapter_name TEXT NOT NULL,
+    level INTEGER NOT NULL,
     FOREIGN KEY(student_id) REFERENCES students(id)
-) ENGINE=InnoDB;");
+);");
 
 // Seed Classrooms
 $pdo->exec("INSERT INTO classrooms (id, name, avg_mastery) VALUES 
@@ -36,7 +35,6 @@ $pdo->exec("INSERT INTO classrooms (id, name, avg_mastery) VALUES
     (2, 'Grade 5 Mathematics - Section B', '54%'),
     (3, 'Grade 6 Remedial Math', '79%');");
 
-// Seed Students and Progress for Classroom 1
 $students_c1 = [
     [1, 'Amina Yusuf', 'Advancing', [3, 2, 1]],
     [1, 'Bao Nguyen', 'Mastering', [3, 3, 2]],
@@ -63,14 +61,14 @@ foreach ($students_c1 as $s) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Setup Complete</title>
+    <title>SQLite Setup Complete</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 flex items-center justify-center h-screen">
     <div class="bg-white p-8 rounded-xl shadow-sm border text-center">
-        <h1 class="text-xl font-bold text-slate-800 mb-2">MySQL Database Setup Successful!</h1>
-        <p class="text-slate-500 text-sm mb-6">Tables created and seeded via PDO.</p>
-        <a href="teacher_home.php" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg transition">Go to Teacher Dashboard &rarr;</a>
+        <h1 class="text-xl font-bold text-slate-800 mb-2">SQLite Database Setup Successful!</h1>
+        <p class="text-slate-500 text-sm mb-6">`system.db` has been created in your project root.</p>
+        <a href="src/teacher/teacher_home.php" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg transition">Go to Teacher Dashboard &rarr;</a>
     </div>
 </body>
 </html>
