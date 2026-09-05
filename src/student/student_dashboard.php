@@ -2,16 +2,15 @@
 $student_name = "Alex Tan";
 $active_tab = $_GET['page'] ?? 'home';
 
-// 导航栏配置：Home 直接跳转 student_dashboard.php
+// Nav Bar Items (Pure Text for Primary 4 / Year 4 Math)
 $nav_items = [
-    'home'     => ['label' => 'Home',     'url' => 'student_dashboard.php'],
-    'notes'    => ['label' => 'Notes',    'url' => 'student_dashboard.php?page=notes'],
-    'practice' => ['label' => 'Practice', 'url' => 'student_dashboard.php?page=practice'],
-    'quiz'     => ['label' => 'Quiz',     'url' => 'quiz.php'],
-    'module'   => ['label' => 'Module',   'url' => 'module.php']
+    'home'        => ['label' => 'Home',        'url' => 'student_dashboard.php'],
+    'module'      => ['label' => 'Modules',     'url' => 'module.php'],
+    'quiz'        => ['label' => 'Quizzes',     'url' => 'quiz.php'],
+    'math_helper' => ['label' => 'Math Helper', 'url' => 'math_helper.php']
 ];
 
-// 学生学习数据
+// Student Learning Data
 $dashboard_data = [
     'current_chapter' => 'Chapter 4: Waterfall Forest',
     'current_topic'   => 'Adding & Subtracting Unlike Fractions',
@@ -56,32 +55,49 @@ $dashboard_data = [
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 
-                <!-- Left: User Avatar & Nav Items -->
-                <div class="flex items-center space-x-8">
-                    <div class="flex items-center space-x-3 pr-4 border-r border-blue-200">
-                        <div class="w-9 h-9 rounded-full bg-pastel-primary text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                            <?= strtoupper(substr($student_name, 0, 1)) ?>
-                        </div>
-                        <span class="font-semibold text-pastel-text text-base whitespace-nowrap">
-                            <?= htmlspecialchars($student_name) ?>
-                        </span>
+                <!-- Leftmost: Student Avatar & Name -->
+                <div class="flex items-center space-x-3 pr-4 border-r border-blue-200">
+                    <div class="w-9 h-9 rounded-full bg-pastel-primary text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                        <?= strtoupper(substr($student_name, 0, 1)) ?>
                     </div>
-
-                    <!-- Navigation Links -->
-                    <div class="flex space-x-2">
-                        <?php foreach ($nav_items as $key => $item): ?>
-                            <a href="<?= $item['url'] ?>" 
-                               class="px-4 py-2 rounded-lg text-sm font-medium transition <?= $key === $active_tab ? 'bg-pastel-primary text-white shadow-sm' : 'text-pastel-text hover:bg-white/60' ?>">
-                                <?= $item['label'] ?>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
+                    <span class="font-semibold text-pastel-text text-base whitespace-nowrap">
+                        <?= htmlspecialchars($student_name) ?>
+                    </span>
                 </div>
 
-                <!-- Right Grade Tag -->
-                <span class="text-xs bg-pastel-badge text-pastel-hover font-semibold px-3 py-1 rounded-full">
-                    Grade 5 Math
-                </span>
+                <!-- Center Navigation Items (Text Only) -->
+                <div class="flex space-x-2">
+                    <?php foreach ($nav_items as $key => $item): ?>
+                        <a href="<?= $item['url'] ?>" 
+                           class="px-4 py-2 rounded-lg text-sm font-semibold transition <?= $key === $active_tab ? 'bg-pastel-primary text-white shadow-sm' : 'text-pastel-text hover:bg-white/60' ?>">
+                            <?= $item['label'] ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- Right: Utility Tools & Grade Tag (Text Only) -->
+                <div class="flex items-center space-x-3">
+                    
+                    <!-- Read-Aloud Tool Button -->
+                    <button type="button" 
+                            title="Read Aloud"
+                            class="px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white text-slate-600 hover:text-pastel-hover text-xs border border-blue-100 transition shadow-sm font-medium">
+                        Read Aloud
+                    </button>
+
+                    <!-- Digital Scratchpad Tool Button -->
+                    <button type="button" 
+                            title="Scratchpad"
+                            class="px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white text-slate-600 hover:text-pastel-hover text-xs border border-blue-100 transition shadow-sm font-medium">
+                        Scratchpad
+                    </button>
+
+                    <!-- Grade Tag -->
+                    <span class="text-xs bg-pastel-badge text-pastel-hover font-semibold px-3 py-1.5 rounded-full whitespace-nowrap">
+                        Year 4 Math
+                    </span>
+                </div>
+
             </div>
         </div>
     </nav>
@@ -93,7 +109,7 @@ $dashboard_data = [
         <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
                 <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Welcome Back</span>
-                <h1 class="text-2xl font-bold text-pastel-text mt-1">Hello, <?= htmlspecialchars($student_name) ?>! 👋</h1>
+                <h1 class="text-2xl font-bold text-pastel-text mt-1">Hello, <?= htmlspecialchars($student_name) ?>!</h1>
                 <p class="text-sm text-slate-500 mt-0.5">Ready to continue your learning journey today?</p>
             </div>
             <a href="module.php" class="px-5 py-2.5 bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-bold rounded-xl shadow-sm transition whitespace-nowrap">
@@ -125,7 +141,7 @@ $dashboard_data = [
                         Open Chapter Module
                     </a>
                     <a href="quiz.php" class="flex-1 text-center py-2.5 bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-bold rounded-xl shadow-sm transition">
-                        Take Chapter Quizzes 🏆
+                        Take Chapter Quizzes
                     </a>
                 </div>
             </div>
