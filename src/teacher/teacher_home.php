@@ -3,6 +3,8 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
+$teacher_name = $_SESSION['teacher_name'] ?? 'Teacher Sarah';
+
 // Fetch all classrooms
 $classrooms = $pdo->query("SELECT * FROM classrooms")->fetchAll(PDO::FETCH_ASSOC);
 ?>
@@ -38,12 +40,25 @@ $classrooms = $pdo->query("SELECT * FROM classrooms")->fetchAll(PDO::FETCH_ASSOC
     <!-- Navbar -->
     <header class="bg-pastel-nav border-b border-blue-100 sticky top-0 z-50 shadow-sm">
         <div class="max-w-7xl mx-auto px-6 py-3.5 flex justify-between items-center">
-            <div class="flex items-center space-x-4">
-                <h1 class="text-base font-bold text-pastel-text tracking-wide">EduHunt Teacher Dashboard</h1>
-            </div>
-            <div class="flex items-center space-x-3">
-                <div class="bg-pastel-badge text-pastel-hover text-xs font-semibold px-3 py-1 rounded-full border border-blue-100">
-                    👨‍🏫 Educator Portal
+            <!-- Logo -->
+            <a href="teacher_home.php" class="flex items-center space-x-3">
+                <div class="bg-pastel-badge w-10 h-10 rounded-xl flex items-center justify-center shadow-sm">
+                    <span class="text-xl">📖</span>
+                </div>
+                <span class="text-xl font-black tracking-wide text-pastel-text">
+                    EduHunt
+                </span>
+            </a>
+
+            <!-- Profile Name -->
+            <div class="flex items-center">
+                <div class="flex items-center gap-3 py-1.5 px-3 bg-pastel-card border border-pastel-primary/25 rounded-xl shadow-sm">
+                    <div class="w-8 h-8 rounded-full bg-pastel-badge flex items-center justify-center font-bold text-pastel-text text-xs">
+                        <?php echo strtoupper(substr($teacher_name, 0, 1)); ?>
+                    </div>
+                    <span class="text-sm font-bold text-pastel-text">
+                        <?php echo htmlspecialchars($teacher_name); ?>
+                    </span>
                 </div>
             </div>
         </div>
