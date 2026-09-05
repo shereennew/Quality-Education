@@ -4,12 +4,16 @@ require_once __DIR__ . '/../config/db.php';
 
 $student_id = $_SESSION['user_id'] ?? 1;
 
-$student_id = 1;
+// 查询学生信息
+$stmtStudent = $pdo->prepare("SELECT name, level, xp FROM users WHERE id = ?");
+$stmtStudent->execute([$student_id]);
+$student = $stmtStudent->fetch(PDO::FETCH_ASSOC) ?: [
+    'name'  => 'Aina',
+    'level' => 4,
+    'xp'    => 320
+];
 
-// Fetch Student Info
-$stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
-$stmt_student->execute([$student_id]);
-$student = $stmt_student->fetch(PDO::FETCH_ASSOC);
+// 1. 从数据库读取所有章节
 $stmtChapters = $pdo->query("SELECT id, title, topic FROM chapters ORDER BY id ASC");
 $all_chapters = $stmtChapters->fetchAll(PDO::FETCH_ASSOC);
 
