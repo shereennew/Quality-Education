@@ -259,14 +259,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header class="bg-pastel-nav border-b border-blue-100 sticky top-0 z-50 shadow-sm">
         <div class="max-w-3xl mx-auto px-6 py-3.5 flex justify-between items-center w-full">
             <a href="classroom.php" class="text-pastel-text hover:text-pastel-hover bg-white/60 hover:bg-white px-3 py-1.5 rounded-lg text-xs font-semibold transition border border-blue-100">&larr; Back to Classroom</a>
-            <h1 class="text-base font-bold text-pastel-text tracking-wide">Chapter, Topic & Subtopic Setup</h1>
         </div>
     </header>
 
     <main class="max-w-3xl mx-auto px-6 py-10 flex-1 w-full">
         <div class="bg-pastel-card rounded-2xl shadow-sm border border-blue-100 p-8">
             <h2 class="text-lg font-bold text-pastel-text mb-1">Create Chapter Structure</h2>
-            <p class="text-xs text-slate-400 mb-6">Configure topic-level materials/quizzes and add multiple subtopics with their own materials and quizzes.</p>
 
             <?php if (!empty($success_msg)): ?>
                 <div class="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs px-4 py-3 rounded-xl">
@@ -341,7 +339,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="flex justify-between items-center">
                         <div>
                             <h3 class="text-sm font-bold text-pastel-text">3. Subtopics (Materials & Quizzes)</h3>
-                            <p class="text-xs text-slate-400">Add subtopics under this chapter, complete with their own material and quiz questions.</p>
                         </div>
                         <button type="button" onclick="addSubtopicSection()" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-4 py-2 rounded-xl transition shadow-sm">
                             + Add Subtopic
@@ -355,7 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="flex justify-end pt-4">
                     <button type="submit" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-6 py-3 rounded-xl transition shadow-sm">
-                        Save Chapter, Topics & Subtopics
+                        Save
                     </button>
                 </div>
             </form>

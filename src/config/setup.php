@@ -177,11 +177,15 @@ try {
         $stmt_mat->execute([$mat[0], $mat[1], $mat[2], $mat[3]]);
     }
 
-    // Reduced & Streamlined Quiz Data
+    // Streamlined Quiz Data
     $sample_quizzes = [
         // Fractions (Ch 1)
-        ["Fractions (Ch 1)", NULL, "What is 1/2 + 1/4?", "1/6", "3/4", "2/6", "2/4", "B"],
-        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Which fraction is equivalent to 2/4?", "1/3", "1/4", "1/2", "3/5", "C"],
+        ["Fractions (Ch 1)", NULL, "What is 3/5 - 1/5?", "1/5", "2/5", "3/5", "4/5", "B"],
+        ["Fractions (Ch 1)", NULL, "Which of the following is a proper fraction?", "5/4", "4/3", "2/3", "7/2", "C"],
+        ["Fractions (Ch 1)", NULL, "What is 1/3 + 1/3?", "1/6", "2/6", "2/3", "3/3", "C"],
+        ["Fractions (Ch 1)", NULL, "Which fraction is greater: 1/2 or 1/4?", "1/4", "1/2", "They are equal", "Cannot be determined", "B"],
+        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "What is 2/7 + 3/7?", "5/14", "5/7", "1/7", "6/7", "B"],
+        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "What is 5/8 - 2/8?", "1/8", "2/8", "3/8", "4/8", "C"],
 
         // Decimals (Ch 2)
         ["Decimals (Ch 2)", NULL, "What is 0.4 converted to a fraction in simplest form?", "2/5", "4/10", "1/4", "4/5", "A"],
