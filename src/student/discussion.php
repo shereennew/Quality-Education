@@ -163,23 +163,11 @@ unset($post);
             </div>
 
             <div class="flex items-center flex-shrink-0 relative">
-                <button id="user-menu-button" data-dropdown-toggle="user-dropdown" type="button" class="flex items-center gap-3 py-2.5 px-4 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm">
+                <div class="flex items-center gap-3 py-2.5 px-4 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm">
                     <div class="w-10 h-10 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-lg">
                         <?= strtoupper(substr($current_student['name'], 0, 1)) ?>
                     </div>
                     <span class="text-lg font-bold text-pastel-text hidden sm:block"><?= htmlspecialchars($current_student['name']) ?></span>
-                </button>
-
-                <div class="z-50 hidden bg-pastel-card border-2 border-pastel-nav rounded-2xl shadow-xl w-60 mt-2" id="user-dropdown">
-                    <div class="px-5 py-4 border-b-2 border-pastel-nav">
-                        <span class="block text-base font-bold text-pastel-text"><?= htmlspecialchars($current_student['name']) ?></span>
-                        <span class="block text-xs text-pastel-primary font-semibold mt-0.5">Level <?= $current_student['level'] ?></span>
-                    </div>
-                    <ul class="p-2 text-sm text-pastel-text font-medium" aria-labelledby="user-menu-button">
-                        <li><a href="#" class="block w-full px-4 py-2 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Profile</a></li>
-                        <li><a href="#" class="block w-full px-4 py-2 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Settings</a></li>
-                        <li><a href="#" class="block w-full px-4 py-2 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Sign out</a></li>
-                    </ul>
                 </div>
             </div>
         </div>

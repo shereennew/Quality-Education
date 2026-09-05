@@ -1,5 +1,5 @@
 <?php
-// module.php - WITH PROPER FALLBACK
+// module.php - WITH DYNAMIC DATABASE-DRIVEN ADDITIONAL RESOURCES
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 session_start();
@@ -34,13 +34,11 @@ try {
     $stmt = $pdo->query("SELECT DISTINCT chapter_name FROM chapter_materials ORDER BY chapter_name");
     $db_chapters = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (Exception $e) {
-    // Database error - use mock data
     $db_chapters = [];
 }
 
-// If no chapters in database, USE MOCK DATA
+// If no chapters in database, USE MOCK DATA (including optional remedial resources)
 if (empty($db_chapters)) {
-    // Mock chapters data (your original hardcoded data)
     $chapters = [
         1 => [
             'title' => 'Whole Numbers & Basic Arithmetic',
@@ -62,6 +60,9 @@ if (empty($db_chapters)) {
                     'questions' => [
                         ['id' => 101, 'diff' => 'Easy', 'title' => 'Identify the place value of 5 in 352,410'],
                         ['id' => 102, 'diff' => 'Medium', 'title' => 'Compare numbers up to six digits using symbols']
+                    ],
+                    'additional_resources' => [
+                        ['title' => 'Catch-up Guide: Simplified Place Value Breakdown', 'url' => '#', 'type' => 'Remedial Guide']
                     ]
                 ],
                 '1.2' => [
@@ -80,44 +81,48 @@ if (empty($db_chapters)) {
                     'questions' => [
                         ['id' => 103, 'diff' => 'Easy', 'title' => 'Solve 5-digit addition with regrouping'],
                         ['id' => 104, 'diff' => 'Hard', 'title' => 'Word problem involving mixed addition and subtraction']
-                    ]
-                ]
-            ]
-        ],
-        2 => [
-            'title' => 'Fractions, Decimals & Percentages',
-            'topic' => 'Conversion and Calculations',
-            'subtopics' => [
-                '2.1' => [
-                    'title' => 'Equivalent Fractions',
-                    'badge_color' => 'bg-amber-100 text-amber-700',
-                    'status' => 'Locked',
-                    'notes' => [
-                        'overview' => 'Fractions that represent the same proportion of the whole even though their numerators and denominators differ.',
-                        'points' => [
-                            'Multiply or divide numerator and denominator by the same non-zero number.',
-                            'Simplify fractions to their lowest terms.'
-                        ],
-                        'example' => 'Find an equivalent fraction for 2/3 with denominator 6. <br><span class="text-pastel-primary font-bold">Answer: 4/6</span>'
                     ],
-                    'questions' => [
-                        ['id' => 201, 'diff' => 'Easy', 'title' => 'Simplify fractions to lowest terms']
-                    ]
+                    'additional_resources' => []
                 ]
             ]
         ]
     ];
 } else {
-    // Build chapters and their materials from the teacher's database records.
+    /* 
+      EXPECTED DATABASE TABLE STRUCTURE FOR ADDITIONAL RESOURCES:
+      CREATE TABLE IF NOT EXISTS additional_resources (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          chapter_name VARCHAR(255) NOT NULL,
+          subtopic_index INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          url VARCHAR(500) NOT NULL,
+          type VARCHAR(50) DEFAULT 'Remedial'
+      );
+    */
+
     foreach ($db_chapters as $index => $chapter_name) {
+        // Fetch materials
         $stmt_materials = $pdo->prepare("SELECT * FROM chapter_materials WHERE chapter_name = ? ORDER BY id ASC");
         $stmt_materials->execute([$chapter_name]);
         $materials = $stmt_materials->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fetch optional remedial / additional resources for this chapter from DB
+        $db_resources = [];
+        try {
+            $stmt_res = $pdo->prepare("SELECT * FROM additional_resources WHERE chapter_name = ?");
+            $stmt_res->execute([$chapter_name]);
+            $db_resources = $stmt_res->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            // Table might not exist yet; gracefully handle
+            $db_resources = [];
+        }
+
         $subtopics = [];
 
         foreach ($materials as $material_index => $material) {
             $material_title = $material['title'] ?? $material['file_name'] ?? 'Teacher Material';
             $file_path = $material['file_path'] ?? null;
+            $current_subtopic_idx = $material_index + 1;
 
             if (!$file_path && !empty($material['file_name'])) {
                 $file_path = '../uploads/' . rawurlencode($material['file_name']);
@@ -125,7 +130,19 @@ if (empty($db_chapters)) {
                 $file_path = '../' . $file_path;
             }
 
-            $subtopics[(string)($material_index + 1)] = [
+            // Filter resources specifically meant for this subtopic/material index if applicable
+            $subtopic_resources = [];
+            foreach ($db_resources as $res) {
+                if (isset($res['subtopic_index']) && (int)$res['subtopic_index'] === $current_subtopic_idx) {
+                    $subtopic_resources[] = [
+                        'title' => $res['title'],
+                        'url' => $res['url'],
+                        'type' => $res['type'] ?? 'Remedial'
+                    ];
+                }
+            }
+
+            $subtopics[(string)$current_subtopic_idx] = [
                 'title' => $material_title,
                 'badge_color' => 'bg-blue-100 text-blue-700',
                 'status' => 'Available',
@@ -134,7 +151,8 @@ if (empty($db_chapters)) {
                     'points' => ['Read the material carefully and review the chapter quiz when ready.'],
                     'example' => $file_path ? '<a class="text-pastel-primary font-bold underline" href="' . htmlspecialchars($file_path, ENT_QUOTES, 'UTF-8') . '" target="_blank">Open teacher material</a>' : 'No file attached.'
                 ],
-                'questions' => []
+                'questions' => [],
+                'additional_resources' => $subtopic_resources // Dynamically loaded optional resources
             ];
         }
 
@@ -148,7 +166,8 @@ if (empty($db_chapters)) {
                     'points' => ['Check the chapter materials for this topic.'],
                     'example' => 'No material file provided yet.'
                 ],
-                'questions' => []
+                'questions' => [],
+                'additional_resources' => []
             ];
         }
 
@@ -196,7 +215,7 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
 </head>
 <body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center p-6 pt-32">
 
-    <!-- EXACT NAV BAR MATCHING QUIZ.PHP -->
+    <!-- NAV BAR -->
     <nav class="bg-pastel-nav fixed w-full h-20 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
         <div class="w-full max-w-[85rem] mx-auto px-8 flex items-center justify-between">
             <a href="index.php" class="flex items-center gap-3 flex-shrink-0">
@@ -272,12 +291,15 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
             <div class="lg:col-span-8 bg-pastel-card p-6 sm:p-8 rounded-2xl border border-blue-100 shadow-sm">
                 
                 <!-- Tabs -->
-                <div class="flex border-b border-slate-100 mb-6 gap-6">
-                    <button onclick="switchTab('notes')" id="tab-btn-notes" class="pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition">
+                <div class="flex border-b border-slate-100 mb-6 gap-6 overflow-x-auto">
+                    <button onclick="switchTab('notes')" id="tab-btn-notes" class="pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition whitespace-nowrap">
                         📖 Notes
                     </button>
-                    <button onclick="switchTab('lessons')" id="tab-btn-lessons" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition">
+                    <button onclick="switchTab('lessons')" id="tab-btn-lessons" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition whitespace-nowrap">
                         ✏️ Lessons & Questions
+                    </button>
+                    <button onclick="switchTab('resources')" id="tab-btn-resources" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition whitespace-nowrap">
+                        🔗 Additional Resources <span id="resource-badge-count" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-blue-100 text-blue-700 font-bold hidden"></span>
                     </button>
                 </div>
 
@@ -303,6 +325,12 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
                 <div id="view-lessons" class="hidden space-y-4">
                     <p class="text-sm text-slate-500 mb-2">Click on any lesson question below to jump directly into practice mode:</p>
                     <div id="questions-list" class="space-y-3"></div>
+                </div>
+
+                <!-- Additional Resources View (Optional Remedial Material) -->
+                <div id="view-resources" class="hidden space-y-4">
+                    <p class="text-sm text-slate-500 mb-2">Optional supplementary materials provided by your teacher to help reinforce core concepts:</p>
+                    <div id="resources-list" class="space-y-3"></div>
                 </div>
 
             </div>
@@ -336,18 +364,30 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
             activeTab = tab;
             const notesBtn = document.getElementById('tab-btn-notes');
             const lessonsBtn = document.getElementById('tab-btn-lessons');
+            const resourcesBtn = document.getElementById('tab-btn-resources');
+
+            [notesBtn, lessonsBtn, resourcesBtn].forEach(btn => {
+                btn.className = "pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition whitespace-nowrap";
+            });
+
+            ['view-notes', 'view-lessons', 'view-resources'].forEach(viewId => {
+                const el = document.getElementById(viewId);
+                el.classList.add('hidden');
+                el.classList.remove('block');
+            });
+
             if (tab === 'notes') {
-                notesBtn.className = "pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition";
-                lessonsBtn.className = "pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition";
+                notesBtn.className = "pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition whitespace-nowrap";
                 document.getElementById('view-notes').classList.add('block');
                 document.getElementById('view-notes').classList.remove('hidden');
-                document.getElementById('view-lessons').classList.add('hidden');
-            } else {
-                lessonsBtn.className = "pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition";
-                notesBtn.className = "pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition";
+            } else if (tab === 'lessons') {
+                lessonsBtn.className = "pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition whitespace-nowrap";
                 document.getElementById('view-lessons').classList.add('block');
                 document.getElementById('view-lessons').classList.remove('hidden');
-                document.getElementById('view-notes').classList.add('hidden');
+            } else if (tab === 'resources') {
+                resourcesBtn.className = "pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition whitespace-nowrap";
+                document.getElementById('view-resources').classList.add('block');
+                document.getElementById('view-resources').classList.remove('hidden');
             }
         }
 
@@ -366,6 +406,7 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
             });
             document.getElementById('note-example').innerHTML = data.notes.example;
 
+            // Render Questions List
             const questionsList = document.getElementById('questions-list');
             questionsList.innerHTML = '';
             if (data.questions && data.questions.length > 0) {
@@ -383,6 +424,34 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
                 });
             } else {
                 questionsList.innerHTML = '<p class="text-sm text-slate-500">No questions available for this subtopic yet.</p>';
+            }
+
+            // Render Additional Resources List & Badge Count
+            const resourcesList = document.getElementById('resources-list');
+            const resourceBadge = document.getElementById('resource-badge-count');
+            resourcesList.innerHTML = '';
+
+            if (data.additional_resources && data.additional_resources.length > 0) {
+                resourceBadge.innerText = data.additional_resources.length;
+                resourceBadge.classList.remove('hidden');
+
+                data.additional_resources.forEach(res => {
+                    const resAnchor = document.createElement('a');
+                    resAnchor.className = "block p-4 rounded-xl border border-blue-50 bg-pastel-bg hover:border-pastel-primary transition flex justify-between items-center";
+                    resAnchor.href = res.url;
+                    resAnchor.target = "_blank";
+                    resAnchor.innerHTML = `
+                        <div>
+                            <span class="text-xs font-bold text-pastel-primary uppercase tracking-wide">${res.type}</span>
+                            <p class="font-semibold text-sm text-pastel-text mt-0.5">${res.title}</p>
+                        </div>
+                        <span class="text-pastel-primary text-sm font-bold">↗</span>
+                    `;
+                    resourcesList.appendChild(resAnchor);
+                });
+            } else {
+                resourceBadge.classList.add('hidden');
+                resourcesList.innerHTML = '<p class="text-sm text-slate-500">No additional remedial resources assigned for this subtopic.</p>';
             }
         }
 
