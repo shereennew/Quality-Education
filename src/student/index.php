@@ -1,21 +1,78 @@
 <?php
-// Mock student data for UI prototyping
-$student = [
-    'name' => 'Aina',
-    'level' => 4,
-    'xp' => 320
+require_once __DIR__ . '/../config/db.php';
+
+// -------------------------------------------------------------------------
+// 1. Dynamic Student Data Fetching
+// -------------------------------------------------------------------------
+// Default to Student ID 1 for prototyping; can be replaced with $_SESSION['student_id'] when Auth is added
+$student_id = 1; 
+
+$stmt_student = $pdo->prepare("
+    SELECT s.name, s.score AS xp, c.name AS classroom_name
+    FROM students s
+    LEFT JOIN classrooms c ON s.classroom_id = c.id
+    WHERE s.id = ?
+");
+$stmt_student->execute([$student_id]);
+$student = $stmt_student->fetch(PDO::FETCH_ASSOC);
+
+// Default fallback values if student record does not exist
+if (!$student) {
+    $student = [
+        'name' => 'Amina Yusuf',
+        'xp' => 0,
+        'level' => 1
+    ];
+} else {
+    // Calculate level based on XP/Score dynamically (1 Level per 100 XP, minimum Level 1)
+    $student['level'] = max(1, floor($student['xp'] / 100));
+}
+
+// -------------------------------------------------------------------------
+// 2. Dynamic Island & Progress Data Fetching
+// -------------------------------------------------------------------------
+// Static layout map (coordinates, island names, and math topics)
+$island_config = [
+    1 => ['name' => 'Ancient Pyramid', 'topic' => 'Arithmetic', 'x' => 44, 'y' => 84],
+    2 => ['name' => 'Cherry Blossom Valley', 'topic' => 'Multiplication', 'x' => 30, 'y' => 48],
+    3 => ['name' => 'Volcanic Jungle', 'topic' => 'Fractions', 'x' => 50, 'y' => 48],
+    4 => ['name' => 'Hidden Cove', 'topic' => 'Geometry', 'x' => 70, 'y' => 64],
+    5 => ['name' => 'Waterfall Cliffs', 'topic' => 'Measurement', 'x' => 70, 'y' => 32],
+    6 => ['name' => 'Frozen Igloo', 'topic' => 'Data Handling', 'x' => 54, 'y' => 12],
+    7 => ['name' => 'Desert Treasure', 'topic' => 'Word Problems', 'x' => 32, 'y' => 20],
 ];
 
-// Mock island progress states and text labels for all 7 levels
-$islands = [
-    1 => ['name' => 'Ancient Pyramid', 'topic' => 'Arithmetic', 'x' => 44, 'y' => 84, 'status' => 'mastered'],
-    2 => ['name' => 'Cherry Blossom Valley', 'topic' => 'Multiplication', 'x' => 30, 'y' => 48, 'status' => 'mastered'],
-    3 => ['name' => 'Volcanic Jungle', 'topic' => 'Fractions', 'x' => 50, 'y' => 48, 'status' => 'pending'],
-    4 => ['name' => 'Hidden Cove', 'topic' => 'Geometry', 'x' => 70, 'y' => 64, 'status' => 'beginner'],
-    5 => ['name' => 'Waterfall Cliffs', 'topic' => 'Measurement', 'x' => 70, 'y' => 32, 'status' => 'locked'],
-    6 => ['name' => 'Frozen Igloo', 'topic' => 'Data Handling', 'x' => 54, 'y' => 12, 'status' => 'locked'],
-    7 => ['name' => 'Desert Treasure', 'topic' => 'Word Problems', 'x' => 32, 'y' => 20, 'status' => 'locked'],
-];
+// Fetch active student progress records from DB
+$stmt_progress = $pdo->prepare("
+    SELECT island_id, status 
+    FROM student_progress 
+    WHERE student_id = ?
+");
+$stmt_progress->execute([$student_id]);
+$progress_records = $stmt_progress->fetchAll(PDO::FETCH_KEY_PAIR); // Returns [island_id => status]
+
+// Build the dynamic $islands array
+$islands = [];
+foreach ($island_config as $id => $config) {
+    // Map DB status strings to UI status classes
+    $db_status = $progress_records[$id] ?? 'locked';
+    
+    $ui_status = match (strtolower($db_status)) {
+        'completed', 'mastered' => 'mastered',
+        'intermediate'         => 'intermediate',
+        'pending'              => 'pending',
+        'in progress', 'beginner' => 'beginner',
+        default                => 'locked',
+    };
+
+    $islands[$id] = [
+        'name'   => $config['name'],
+        'topic'  => $config['topic'],
+        'x'      => $config['x'],
+        'y'      => $config['y'],
+        'status' => $ui_status
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -125,16 +182,16 @@ $islands = [
                             <span>Quizzes</span>
                         </a>
                     </li>
-<li>
-    <a href="history.php" class="flex items-center px-5 py-3 rounded-2xl
-          text-pastel-text
-          hover:bg-pastel-card
-          hover:text-pastel-primary
-          hover:shadow-sm
-          transition-all duration-200">
-        <span>History</span>
-    </a>
-</li>
+                    <li>
+                        <a href="history.php" class="flex items-center px-5 py-3 rounded-2xl
+                          text-pastel-text
+                          hover:bg-pastel-card
+                          hover:text-pastel-primary
+                          hover:shadow-sm
+                          transition-all duration-200">
+                            <span>History</span>
+                        </a>
+                    </li>
                 </ul>
 
             </div>
@@ -166,7 +223,7 @@ $islands = [
 
                     <!-- Name -->
                     <span class="text-lg font-bold text-pastel-text hidden sm:block">
-                        <?= $student['name'] ?>
+                        <?= htmlspecialchars($student['name']) ?>
                     </span>
 
 
@@ -193,7 +250,7 @@ $islands = [
                     <div class="px-5 py-3.5 border-b-2 border-pastel-nav">
 
                         <span class="block text-base font-bold text-pastel-text">
-                            <?= $student['name'] ?>
+                            <?= htmlspecialchars($student['name']) ?>
                         </span>
 
                         <span class="block text-xs text-pastel-primary font-semibold mt-0.5">
@@ -348,16 +405,16 @@ $islands = [
                     </a>
                 </li>
 
-<li>
-    <a href="history.php" class="block py-3 px-4
-          text-pastel-text
-          rounded-xl
-          hover:bg-pastel-bg
-          hover:text-pastel-primary
-          transition-colors">
-        History
-    </a>
-</li>
+                <li>
+                    <a href="history.php" class="block py-3 px-4
+                          text-pastel-text
+                          rounded-xl
+                          hover:bg-pastel-bg
+                          hover:text-pastel-primary
+                          transition-colors">
+                        History
+                    </a>
+                </li>
             </ul>
 
         </div>
@@ -373,9 +430,8 @@ $islands = [
                 <?= strtoupper(substr($student['name'], 0, 1)) ?>
             </div>
             <div>
-                <!-- Enlarged Emoji Here -->
                 <h1 class="text-base font-black text-pastel-text flex items-center gap-1.5">
-                    Ahoy, <?= $student['name'] ?>! <span class="text-2xl leading-none">🏴‍☠️</span>
+                    Ahoy, <?= htmlspecialchars($student['name']) ?>! <span class="text-2xl leading-none">🏴‍☠️</span>
                 </h1>
                 <p class="text-xs font-semibold text-pastel-primary">Ready to conquer your Year 4 Math Islands?</p>
             </div>
@@ -408,6 +464,10 @@ $islands = [
                 $pinColor = "bg-rose-100 border-rose-300 text-rose-700 hover:bg-rose-200 cursor-pointer hover:scale-110 shadow-rose-200/50 shadow-lg";
                 $pulse = "animate-bounce";
                 $statusLabel = "Beginner 🌱";
+            } elseif ($status === 'intermediate') {
+                $pinColor = "bg-sky-100 border-sky-300 text-sky-700 hover:bg-sky-200 cursor-pointer hover:scale-110 shadow-sky-200/50 shadow-lg";
+                $pulse = "animate-pulse";
+                $statusLabel = "Intermediate 🌿";
             } elseif ($status === 'pending') {
                 $pinColor = "bg-amber-100 border-amber-300 text-amber-700 hover:bg-amber-200 cursor-pointer hover:scale-110 shadow-amber-200/50 shadow-lg";
                 $pulse = "animate-bounce";
@@ -432,7 +492,7 @@ $islands = [
                             <?php endif; ?>
                         </div>
                         <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/90 text-white text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap mt-2 border border-slate-700 shadow-xl z-40">
-                            Island <?= $id ?>: <?= $island['name'] ?> (<span class="text-pastel-primary"><?= $island['topic'] ?></span>) — <span class="text-amber-300"><?= $statusLabel ?></span>
+                            Island <?= $id ?>: <?= htmlspecialchars($island['name']) ?> (<span class="text-pastel-primary"><?= htmlspecialchars($island['topic']) ?></span>) — <span class="text-amber-300"><?= $statusLabel ?></span>
                         </div>
                     </a>
                 <?php else: ?>
@@ -455,6 +515,8 @@ $islands = [
         <div class="flex items-center space-x-5">
             <div class="flex items-center gap-1.5"><span
                     class="w-3 h-3 rounded-full bg-rose-200 border border-rose-300"></span> Beginner</div>
+            <div class="flex items-center gap-1.5"><span
+                    class="w-3 h-3 rounded-full bg-sky-200 border border-sky-300"></span> Intermediate</div>
             <div class="flex items-center gap-1.5"><span
                     class="w-3 h-3 rounded-full bg-amber-200 border border-amber-300"></span> Pending Review</div>
             <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> Mastered
