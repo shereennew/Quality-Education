@@ -8,37 +8,133 @@ $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
 $stmt_student->execute([$student_id]);
 $student = $stmt_student->fetch(PDO::FETCH_ASSOC);
 
-// Mock database / chapters matching module.php
-$chapters = [
-    1 => [
-        'title' => 'Whole Numbers & Basic Arithmetic',
-        'topic' => 'Operations up to 1,000,000'
-    ],
-    2 => [
-        'title' => 'Fractions, Decimals & Percentages',
-        'topic' => 'Conversion and Calculations'
-    ]
-];
+$classroom_id = $student['classroom_id'] ?? 1;
+
+// Fetch chapters dynamically from DB to match module.php
+$chapters_db = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT cm.chapter_name 
+        FROM classroom_chapters cc
+        JOIN chapter_materials cm ON cc.chapter_id = cm.id OR cc.chapter_name = cm.chapter_name
+        WHERE cc.classroom_id = ? AND cc.is_unlocked = 1
+        GROUP BY cm.chapter_name
+        ORDER BY cm.chapter_name ASC
+    ");
+    $stmt->execute([$classroom_id]);
+    $chapters_db = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    try {
+        $stmt = $pdo->prepare("SELECT DISTINCT chapter_name FROM chapter_materials WHERE classroom_id = ? AND is_unlocked = 1 ORDER BY chapter_name ASC");
+        $stmt->execute([$classroom_id]);
+        $chapters_db = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $ex) {
+        $stmt = $pdo->query("SELECT DISTINCT chapter_name FROM chapter_materials ORDER BY chapter_name ASC");
+        $chapters_db = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+}
+
+if (empty($chapters_db)) {
+    $chapters_db = [
+        'Ancient Pyramid: Fundamentals',
+        'Cherry Blossom: Multiplications',
+        'Volcanic Jungle: Fractions & Decimals'
+    ];
+}
+
+$chapters = [];
+foreach ($chapters_db as $idx => $chap_name) {
+    $chapters[$idx + 1] = [
+        'title' => $chap_name,
+        'topic' => 'Chapter ' . ($idx + 1) . ' Assessment & Practice'
+    ];
+}
 
 // Determine selected chapter ID from URL query parameters (default to 1)
 $selected_chap_id = isset($_GET['chapter']) && isset($chapters[$_GET['chapter']]) ? (int)$_GET['chapter'] : 1;
 $chapter_info = $chapters[$selected_chap_id];
 
-// Teacher-created chapter quizzes are available here as assigned quizzes, scoped by student_id = 1
-$assigned_quizzes = [];
+// Fetch chapter materials / subtopics dynamically for this chapter
+$subtopics_list = [];
 try {
-    $stmt_assigned = $pdo->prepare("SELECT * FROM chapter_quizzes WHERE (chapter_name LIKE ? OR chapter_name = ?) AND student_id = ? ORDER BY id");
-    $stmt_assigned->execute(['%' . $selected_chap_id . '%', $chapter_info['title'], $student_id]);
-    $assigned_quizzes[$chapter_info['title']] = $stmt_assigned->fetchAll(PDO::FETCH_ASSOC);
+    $stmt_mat = $pdo->prepare("SELECT * FROM chapter_materials WHERE chapter_name = ? ORDER BY id ASC");
+    $stmt_mat->execute([$chapter_info['title']]);
+    $subtopics_list = $stmt_mat->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $subtopics_list = [];
+}
+
+// Fetch student quiz completion history from database if available
+$completed_quiz_ids = [];
+$student_id = 1; // Adjust based on your session/auth variable
+try {
+    $stmt_history = $pdo->prepare("SELECT quiz_id FROM student_quiz_history WHERE student_id = ? AND status = 'completed'");
+    $stmt_history->execute([$student_id]);
+    $completed_quiz_ids = $stmt_history->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {
+    $completed_quiz_ids = [];
+}
+
+// Fetch teacher-assigned quizzes for this chapter from DB
+$raw_quizzes = [];
+try {
+    $stmt_assigned = $pdo->prepare("SELECT * FROM chapter_quizzes WHERE chapter_name = ? ORDER BY id");
+    $stmt_assigned->execute([$chapter_info['title']]);
+    $raw_quizzes = $stmt_assigned->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    try {
-        // Fallback if chapter_quizzes doesn't have student_id column
-        $stmt_assigned = $pdo->prepare("SELECT * FROM chapter_quizzes WHERE chapter_name LIKE ? OR chapter_name = ? ORDER BY id");
-        $stmt_assigned->execute(['%' . $selected_chap_id . '%', $chapter_info['title']]);
-        $assigned_quizzes[$chapter_info['title']] = $stmt_assigned->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $ex) {
-        $assigned_quizzes = [];
+    $raw_quizzes = [];
+}
+
+// Map quizzes subtopic-by-subtopic identically to module.php
+$assigned_quizzes = [];
+if (!empty($subtopics_list)) {
+    foreach ($subtopics_list as $index => $sub) {
+        $current_subtopic_idx = $index + 1;
+        $subtopic_num = $sub['subtopic_name'] ?? $current_subtopic_idx;
+        $subtopic_title =  $subtopic_num . ': ' . ($sub['title'] ?? 'Practice Quiz');
+        
+        $matched_quizzes = [];
+        foreach ($raw_quizzes as $qIndex => $q) {
+            $matches_subtopic = false;
+            if (isset($q['subtopic_name']) && (string)$q['subtopic_name'] === (string)$subtopic_num) {
+                $matches_subtopic = true;
+            } elseif ($qIndex % count($subtopics_list) === $index) {
+                $matches_subtopic = true;
+            }
+
+            if ($matches_subtopic) {
+                $matched_quizzes[] = $q;
+            }
+        }
+
+        // Guarantee at least one quiz per subtopic
+        if (empty($matched_quizzes)) {
+            $matched_quizzes[] = [
+                'id' => 'fallback_' . $subtopic_num,
+                'question' => 'Which of the following best describes the core concept covered in ' . ($sub['title'] ?? $subtopic_title) . '?',
+                'option_a' => 'A fundamental rule used for accurate computation and verification.',
+                'option_b' => 'An incorrect method resulting in arithmetic errors.',
+                'option_c' => 'An unrelated historical formula.',
+                'option_d' => 'None of the above.',
+                'correct_option' => 'A'
+            ];
+        }
+
+        $assigned_quizzes[$subtopic_title] = $matched_quizzes;
     }
+} else {
+    // Fallback if no chapter materials are found in DB
+    $assigned_quizzes['Chapter Assessment'] = !empty($raw_quizzes) ? $raw_quizzes : [
+        [
+            'id' => 'default_1',
+            'question' => 'Default practice question for this module chapter.',
+            'option_a' => 'Option A',
+            'option_b' => 'Option B',
+            'option_c' => 'Option C',
+            'option_d' => 'Option D',
+            'correct_option' => 'A'
+        ]
+    ];
 }
 ?>
 <!DOCTYPE html>
@@ -71,7 +167,7 @@ try {
 </head>
 <body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center p-6 pt-32">
 
-    <!-- EXACT NAV BAR MATCHING HISTORY.PHP -->
+    <!-- NAV BAR -->
     <nav class="bg-pastel-nav fixed w-full h-20 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
         <div class="w-full max-w-[85rem] mx-auto px-8 flex items-center justify-between">
             <a href="index.php" class="flex items-center gap-3 flex-shrink-0">
@@ -108,7 +204,7 @@ try {
         <!-- Header Banner -->
         <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Chapterr</span>
+                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Chapter <?= $selected_chap_id ?></span>
                 <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_info['title']) ?></h1>
                 <p class="text-sm text-slate-500 mt-0.5"><?= htmlspecialchars($chapter_info['topic']) ?></p>
             </div>
@@ -120,12 +216,10 @@ try {
         <!-- QUIZ MENU SELECTION VIEW -->
         <div id="quiz-menu" class="space-y-6">
             
-
-        
             <!-- Chapter Navigation Selector -->
             <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
                 <h3 class="text-sm font-bold text-pastel-text mb-3">Select Chapter Module:</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <?php foreach ($chapters as $id => $chap): ?>
                         <a href="quiz.php?chapter=<?= $id ?>" class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
                             <div>
@@ -150,7 +244,6 @@ try {
                 </button>
             </div>
 
-
             <!-- TEACHER-ASSIGNED QUIZZES -->
             <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
                 <div class="flex items-start justify-between gap-4 mb-4">
@@ -162,20 +255,18 @@ try {
                     <span class="hidden sm:block text-2xl">📝</span>
                 </div>
 
-                <?php if (!empty($assigned_quizzes[$chapter_info['title']])): ?>
+                <?php if (!empty($assigned_quizzes)): ?>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <?php foreach ($assigned_quizzes as $chapter_name => $questions): ?>
-                            <?php if (!empty($questions)): ?>
-                                <div class="p-4 rounded-xl border-2 border-emerald-100 bg-emerald-50/40 flex items-center justify-between gap-3">
-                                    <div>
-                                        <h3 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chapter_name) ?></h3>
-                                        <p class="text-xs text-slate-500 mt-1"><?= count($questions) ?> question<?= count($questions) === 1 ? '' : 's' ?></p>
-                                    </div>
-                                    <button type="button" onclick="startAssignedQuiz(<?= htmlspecialchars(json_encode($chapter_name), ENT_QUOTES, 'UTF-8') ?>)" class="shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition">
-                                        Start Quiz
-                                    </button>
+                        <?php foreach ($assigned_quizzes as $quizTitle => $questions): ?>
+                            <div class="p-4 rounded-xl border-2 border-emerald-100 bg-emerald-50/40 flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($quizTitle) ?></h3>
+                                    <p class="text-xs text-slate-500 mt-1"><?= count($questions) ?> question<?= count($questions) === 1 ? '' : 's' ?></p>
                                 </div>
-                            <?php endif; ?>
+                                <button type="button" onclick="startAssignedQuiz(<?= htmlspecialchars(json_encode($quizTitle), ENT_QUOTES, 'UTF-8') ?>)" class="shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition">
+                                    Start Quiz
+                                </button>
+                            </div>
                         <?php endforeach; ?>
                     </div>
                 <?php else: ?>
@@ -191,7 +282,7 @@ try {
         <div id="quiz-runner" class="hidden bg-pastel-card p-8 rounded-2xl shadow-sm border border-blue-100">
             <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-100">
                 <div>
-                    <span id="quiz-title-display" class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Quiz</span>
+                    <span id="quiz-title-display" class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Quiz Engine</span>
                     <h3 id="quiz-subtitle-display" class="text-lg font-bold text-pastel-text"></h3>
                 </div>
                 <div class="text-right">
@@ -230,7 +321,7 @@ try {
             <div class="w-16 h-16 bg-blue-50 text-pastel-primary rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
                 🎯
             </div>
-            <h2 class="text-2xl font-bold text-pastel-text mb-1">AI Quiz Completed!</h2>
+            <h2 class="text-2xl font-bold text-pastel-text mb-1">Quiz Completed!</h2>
             <p id="result-quiz-name" class="text-sm text-slate-500 mb-4"></p>
 
             <div class="bg-pastel-bg p-6 rounded-2xl border border-blue-50 max-w-xs mx-auto mb-6">
@@ -258,8 +349,9 @@ try {
         let isEvaluating = false;
         const assignedQuizzes = <?= json_encode($assigned_quizzes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
-        function startAssignedQuiz(chapterName) {
-            const questions = (assignedQuizzes[chapterName] || []).map((question) => ({
+        function startAssignedQuiz(quizTitle) {
+            const rawQuestions = assignedQuizzes[quizTitle] || [];
+            const questions = rawQuestions.map((question) => ({
                 q: question.question,
                 options: [question.option_a, question.option_b, question.option_c, question.option_d],
                 ans: ['A', 'B', 'C', 'D'].indexOf(question.correct_option.toUpperCase())
@@ -274,7 +366,7 @@ try {
             document.getElementById('quiz-result').classList.add('hidden');
             document.getElementById('quiz-runner').classList.remove('hidden');
             startQuizEngine({
-                title: 'Teacher Quiz: ' + chapterName,
+                title: quizTitle,
                 questions: questions
             });
         }
@@ -328,7 +420,7 @@ try {
             score = 0;
             isEvaluating = false;
 
-            document.getElementById('quiz-title-display').innerText = "Active AI Quiz";
+            document.getElementById('quiz-title-display').innerText = "Active Quiz";
             document.getElementById('quiz-subtitle-display').innerText = currentQuiz.title;
 
             renderQuestion();
@@ -340,7 +432,6 @@ try {
             document.getElementById('quiz-progress').innerText = `${activeQIndex + 1} / ${currentQuiz.questions.length}`;
             document.getElementById('question-text').innerText = qData.q;
 
-            // Hide previous feedback box & clear text
             document.getElementById('ai-feedback-container').classList.add('hidden');
             document.getElementById('ai-feedback-text').innerText = '';
             document.getElementById('next-question-btn').classList.add('hidden');
@@ -366,11 +457,9 @@ try {
             const isCorrect = selectedIndex === qData.ans;
             if (isCorrect) score++;
 
-            // Lock options to prevent double-clicking
             const optsDiv = document.getElementById('options-container');
             optsDiv.classList.add('pointer-events-none', 'opacity-50');
 
-            // Show loading placeholder in AI feedback container
             const feedbackContainer = document.getElementById('ai-feedback-container');
             const feedbackText = document.getElementById('ai-feedback-text');
             feedbackContainer.classList.remove('hidden');
@@ -385,7 +474,6 @@ try {
                     : 'Incorrect. (Note: Could not fetch advanced AI feedback at the moment.)';
             }
 
-            // Show next action button
             document.getElementById('next-question-btn').classList.remove('hidden');
         }
 

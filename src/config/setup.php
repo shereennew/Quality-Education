@@ -83,6 +83,7 @@ try {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         chapter_name TEXT NOT NULL,
         subtopic_name TEXT DEFAULT NULL,
+        title TEXT DEFAULT NULL,
         question TEXT NOT NULL,
         option_a TEXT NOT NULL,
         option_b TEXT NOT NULL,
@@ -207,22 +208,61 @@ try {
     $pdo->exec("INSERT INTO discussion_posts (student_id, title, content) VALUES 
         (1, 'How do I simplify 12/16 to its lowest terms?', 'I know I need to divide numerator and denominator by the highest common factor, but I am stuck.');");
 
-    // Seed Chapter Quiz Bank First so IDs exist for linking answers
+// Seed Chapter Quiz Bank: Each subtopic has 1 quiz set containing at least 4 questions
     $chapter_quizzes_data = [
-        ['Ancient Pyramid: Fundamentals', NULL, 'What is 1/5 + 2/5?', '2/5', '3/5', '4/5', '3/10', 'B', 1],
-        ['Ancient Pyramid: Fundamentals', NULL, 'What is 3/4 + 2/4?', '5/4', '5/8', '1/4', '6/4', 'A', 1],
-        ['Ancient Pyramid: Fundamentals', NULL, 'What is 7/10 - 3/10?', '4/10', '4/0', '10/10', '3/10', 'A', 1],
-        ['Cherry Blossom: Multiplications', NULL, 'Simplify 6/8 to lowest terms.', '3/4', '3/6', '2/4', '6/4', 'A', 1],
-        ['Cherry Blossom: Multiplications', NULL, 'Simplify 5/10 to lowest terms.', '1/5', '2/5', '1/2', '5/2', 'C', 1],
-        ['Cherry Blossom: Multiplications', NULL, 'Which fraction is equivalent to 1/3?', '2/3', '2/6', '3/6', '1/6', 'B', 1],
-        ['Volcanic Jungle: Fractions & Decimals', NULL, 'Convert 7/3 to a mixed number.', '2 1/3', '3 1/2', '1 4/3', '2 2/3', 'A', 1],
-        ['Volcanic Jungle: Fractions & Decimals', NULL, 'Convert 3 1/2 to an improper fraction.', '6/2', '7/2', '5/2', '7/1', 'B', 1],
-        ['Volcanic Jungle: Fractions & Decimals', NULL, 'Calculate 1/3 + 1/4.', '2/7', '7/12', '1/12', '2/12', 'B', 1]
-    ];
+        // ==========================================
+        // Chapter 1: Ancient Pyramid: Fundamentals
+        // ==========================================
+        
+        // Subtopic 1.1 Quiz Set (4 questions)
+        ['Ancient Pyramid: Fundamentals', '1.1', 'Subtopic 1.1 Assessment', 'What is 1/5 + 2/5?', '2/5', '3/5', '4/5', '3/10', 'B', 1],
+        ['Ancient Pyramid: Fundamentals', '1.1', 'Subtopic 1.1 Assessment', 'What is 3/4 + 2/4?', '5/4', '5/8', '1/4', '6/4', 'A', 1],
+        ['Ancient Pyramid: Fundamentals', '1.1', 'Subtopic 1.1 Assessment', 'What is 2/3 + 1/3?', '3/3', '1/1', '1', 'All of the above', 'D', 1],
+        ['Ancient Pyramid: Fundamentals', '1.1', 'Subtopic 1.1 Assessment', 'What is 1/8 + 3/8?', '4/8', '1/2', '2/4', 'All of the above', 'D', 1],
 
-    $stmt_q_bank = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, subtopic_name, question, option_a, option_b, option_c, option_d, correct_option, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        // Subtopic 1.2 Quiz Set (4 questions)
+        ['Ancient Pyramid: Fundamentals', '1.2', 'Subtopic 1.2 Assessment', 'What is 7/10 - 3/10?', '4/10', '4/0', '10/10', '3/10', 'A', 1],
+        ['Ancient Pyramid: Fundamentals', '1.2', 'Subtopic 1.2 Assessment', 'What is 9/10 - 4/10?', '5/10', '3/10', '1/2', '13/10', 'A', 1],
+        ['Ancient Pyramid: Fundamentals', '1.2', 'Subtopic 1.2 Assessment', 'What is 5/6 - 2/6?', '3/6', '1/2', '7/6', 'Both A and B', 'D', 1],
+        ['Ancient Pyramid: Fundamentals', '1.2', 'Subtopic 1.2 Assessment', 'What is 4/5 - 1/5?', '3/5', '3/10', '2/5', '1/5', 'A', 1],
+
+        // ==========================================
+        // Chapter 2: Cherry Blossom: Multiplications
+        // ==========================================
+
+        // Subtopic 2.1 Quiz Set (4 questions)
+        ['Cherry Blossom: Multiplications', '2.1', 'Subtopic 2.1 Assessment', 'Simplify 6/8 to lowest terms.', '3/4', '3/6', '2/4', '6/4', 'A', 1],
+        ['Cherry Blossom: Multiplications', '2.1', 'Subtopic 2.1 Assessment', 'Simplify 4/6 to lowest terms.', '2/3', '1/2', '3/4', '4/6', 'A', 1],
+        ['Cherry Blossom: Multiplications', '2.1', 'Subtopic 2.1 Assessment', 'Simplify 2/4 to lowest terms.', '1/2', '1/4', '2/2', '1/3', 'A', 1],
+        ['Cherry Blossom: Multiplications', '2.1', 'Subtopic 2.1 Assessment', 'Simplify 9/12 to lowest terms.', '3/4', '2/3', '3/5', '4/5', 'A', 1],
+
+        // Subtopic 2.2 Quiz Set (4 questions)
+        ['Cherry Blossom: Multiplications', '2.2', 'Subtopic 2.2 Assessment', 'Simplify 5/10 to lowest terms.', '1/5', '2/5', '1/2', '5/2', 'C', 1],
+        ['Cherry Blossom: Multiplications', '2.2', 'Subtopic 2.2 Assessment', 'Which fraction is equivalent to 1/3?', '2/3', '2/6', '3/6', '1/6', 'B', 1],
+        ['Cherry Blossom: Multiplications', '2.2', 'Subtopic 2.2 Assessment', 'Which fraction is equivalent to 2/4?', '1/2', '3/6', '4/8', 'All of the above', 'D', 1],
+        ['Cherry Blossom: Multiplications', '2.2', 'Subtopic 2.2 Assessment', 'Which fraction is equivalent to 3/5?', '6/10', '9/15', '12/20', 'All of the above', 'D', 1],
+
+        // ==========================================
+        // Chapter 3: Volcanic Jungle: Fractions & Decimals
+        // ==========================================
+
+        // Subtopic 3.1 Quiz Set (4 questions)
+        ['Volcanic Jungle: Fractions & Decimals', '3.1', 'Subtopic 3.1 Assessment', 'Convert 7/3 to a mixed number.', '2 1/3', '3 1/2', '1 4/3', '2 2/3', 'A', 1],
+        ['Volcanic Jungle: Fractions & Decimals', '3.1', 'Subtopic 3.1 Assessment', 'Convert 5/2 to a mixed number.', '2 1/2', '1 1/2', '2 1/3', '3 1/2', 'A', 1],
+        ['Volcanic Jungle: Fractions & Decimals', '3.1', 'Subtopic 3.1 Assessment', 'Convert 9/4 to a mixed number.', '2 1/4', '2 1/2', '1 3/4', '3 1/4', 'A', 1],
+        ['Volcanic Jungle: Fractions & Decimals', '3.1', 'Subtopic 3.1 Assessment', 'Convert 11/3 to a mixed number.', '3 2/3', '2 2/3', '3 1/3', '4 1/3', 'A', 1],
+
+        // Subtopic 3.2 Quiz Set (4 questions)
+        ['Volcanic Jungle: Fractions & Decimals', '3.2', 'Subtopic 3.2 Assessment', 'Convert 3 1/2 to an improper fraction.', '6/2', '7/2', '5/2', '7/1', 'B', 1],
+        ['Volcanic Jungle: Fractions & Decimals', '3.2', 'Subtopic 3.2 Assessment', 'Calculate 1/3 + 1/4.', '2/7', '7/12', '1/12', '2/12', 'B', 1],
+        ['Volcanic Jungle: Fractions & Decimals', '3.2', 'Subtopic 3.2 Assessment', 'Convert 2 1/4 to an improper fraction.', '9/4', '7/4', '8/4', '9/2', 'A', 1],
+        ['Volcanic Jungle: Fractions & Decimals', '3.2', 'Subtopic 3.2 Assessment', 'Calculate 1/2 + 1/3.', '2/5', '5/6', '2/6', '3/6', 'B', 1]
+    ];
+    
+
+    $stmt_q_bank = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, subtopic_name, title, question, option_a, option_b, option_c, option_d, correct_option, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     foreach ($chapter_quizzes_data as $q) {
-        $stmt_q_bank->execute([$q[0], $q[1], $q[2], $q[3], $q[4], $q[5], $q[6], $q[7], $q[8]]);
+        $stmt_q_bank->execute([$q[0], $q[1], $q[2], $q[3], $q[4], $q[5], $q[6], $q[7], $q[8], $q[9]]);
     }
 
     // Seed Student Quiz Answers linked to students (student_id = 1) and quizzes (quiz_id = 1 to 9)
@@ -275,7 +315,7 @@ try {
                 class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
                 ✓</div>
             <h1 class="text-lg font-bold text-slate-800 mb-1">Database Setup Complete!</h1>
-            <p class="text-xs text-slate-500">All tables and quiz questions have been successfully populated.</p>
+            <p class="text-xs text-slate-500">All tables and subtopic-mapped quiz questions have been successfully populated.</p>
         <?php else: ?>
             <div
                 class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
