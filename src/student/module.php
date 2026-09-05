@@ -26,15 +26,36 @@ if (!$student) {
     ];
 }
 
-// Get chapters from database
+// Get classroom ID from student record or default
+$classroom_id = $student['classroom_id'] ?? 1;
+
+// 1. Fetch only chapters unlocked for this specific classroom
 $chapters = [];
 $db_chapters = [];
 
 try {
-    $stmt = $pdo->query("SELECT DISTINCT chapter_name FROM chapter_materials ORDER BY chapter_name");
+    // Attempt to fetch from a classroom-chapters mapping table
+    $stmt = $pdo->prepare("
+        SELECT cm.chapter_name 
+        FROM classroom_chapters cc
+        JOIN chapter_materials cm ON cc.chapter_id = cm.id OR cc.chapter_name = cm.chapter_name
+        WHERE cc.classroom_id = ? AND cc.is_unlocked = 1
+        GROUP BY cm.chapter_name
+        ORDER BY cm.chapter_name ASC
+    ");
+    $stmt->execute([$classroom_id]);
     $db_chapters = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } catch (Exception $e) {
-    $db_chapters = [];
+    try {
+        // Fallback: Check if chapter_materials has classroom/unlock flags
+        $stmt = $pdo->prepare("SELECT DISTINCT chapter_name FROM chapter_materials WHERE classroom_id = ? AND is_unlocked = 1 ORDER BY chapter_name ASC");
+        $stmt->execute([$classroom_id]);
+        $db_chapters = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $ex) {
+        // Fallback to all materials if classroom mapping tables don't exist yet
+        $stmt = $pdo->query("SELECT DISTINCT chapter_name FROM chapter_materials ORDER BY chapter_name ASC");
+        $db_chapters = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
 }
 
 // If no chapters in database, USE MOCK DATA (including optional remedial resources)
@@ -100,7 +121,7 @@ if (empty($db_chapters)) {
       );
     */
 
-    foreach ($db_chapters as $index => $chapter_name) {
+foreach ($db_chapters as $index => $chapter_name) {
         // Fetch materials
         $stmt_materials = $pdo->prepare("SELECT * FROM chapter_materials WHERE chapter_name = ? ORDER BY id ASC");
         $stmt_materials->execute([$chapter_name]);
@@ -113,8 +134,17 @@ if (empty($db_chapters)) {
             $stmt_res->execute([$chapter_name]);
             $db_resources = $stmt_res->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
-            // Table might not exist yet; gracefully handle
             $db_resources = [];
+        }
+
+        // Fetch quizzes for this chapter from DB
+        $db_quizzes = [];
+        try {
+            $stmt_quiz = $pdo->prepare("SELECT id, question, score FROM chapter_quizzes WHERE chapter_name = ?");
+            $stmt_quiz->execute([$chapter_name]);
+            $db_quizzes = $stmt_quiz->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $db_quizzes = [];
         }
 
         $subtopics = [];
@@ -130,7 +160,7 @@ if (empty($db_chapters)) {
                 $file_path = '../' . $file_path;
             }
 
-            // Filter resources specifically meant for this subtopic/material index if applicable
+            // Filter resources specifically meant for this subtopic/material index
             $subtopic_resources = [];
             foreach ($db_resources as $res) {
                 if (isset($res['subtopic_index']) && (int)$res['subtopic_index'] === $current_subtopic_idx) {
@@ -138,6 +168,29 @@ if (empty($db_chapters)) {
                         'title' => $res['title'],
                         'url' => $res['url'],
                         'type' => $res['type'] ?? 'Remedial'
+                    ];
+                }
+            }
+
+            // Map chapter quizzes to subtopics (distribute or assign)
+            $subtopic_questions = [];
+            foreach ($db_quizzes as $qIndex => $q) {
+                // Assign quizzes across subtopics evenly or attach them
+                if ($qIndex % count($materials) === $material_index) {
+                    $subtopic_questions[] = [
+                        'id' => $q['id'],
+                        'diff' => 'Medium',
+                        'title' => $q['question']
+                    ];
+                }
+            }
+            // Fallback if distribution leaves a subtopic empty but quizzes exist
+            if (empty($subtopic_questions) && !empty($db_quizzes) && $material_index === 0) {
+                foreach ($db_quizzes as $q) {
+                    $subtopic_questions[] = [
+                        'id' => $q['id'],
+                        'diff' => 'Medium',
+                        'title' => $q['question']
                     ];
                 }
             }
@@ -151,8 +204,8 @@ if (empty($db_chapters)) {
                     'points' => ['Read the material carefully and review the chapter quiz when ready.'],
                     'example' => $file_path ? '<a class="text-pastel-primary font-bold underline" href="' . htmlspecialchars($file_path, ENT_QUOTES, 'UTF-8') . '" target="_blank">Open teacher material</a>' : 'No file attached.'
                 ],
-                'questions' => [],
-                'additional_resources' => $subtopic_resources // Dynamically loaded optional resources
+                'questions' => $subtopic_questions,
+                'additional_resources' => $subtopic_resources
             ];
         }
 
@@ -249,10 +302,10 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
     <!-- MAIN CONTENT -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        <!-- Chapter Selector -->
+<!-- Chapter Selector -->
         <div class="mb-6 flex gap-3 overflow-x-auto pb-2">
             <?php foreach ($chapters as $chap_num => $chap): ?>
-                <a href="module.php?chap=<?= $chap_num ?>" class="px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap flex items-center gap-2 <?= $chap_num === $selected_chap_id ? 'bg-pastel-primary text-white' : 'bg-pastel-card text-slate-600 hover:bg-blue-50 border border-blue-100' ?>">
+                <a href="module.php?chap=<?= $chap_num ?>" class="px-6 py-3 rounded-xl text-sm font-bold transition shadow-sm whitespace-nowrap flex items-center gap-2 <?= $chap_num === $selected_chap_id ? 'bg-pastel-primary text-white' : 'bg-pastel-card text-slate-600 hover:bg-blue-50 border border-blue-100' ?>">
                     <span>Chapter <?= $chap_num ?></span>
                 </a>
             <?php endforeach; ?>
@@ -261,7 +314,6 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
         <!-- Header -->
         <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm mb-6 flex justify-between items-center">
             <div>
-                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Active Module</span>
                 <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($active_chapter['title']) ?></h1>
                 <p class="text-sm text-slate-500 mt-0.5"><?= htmlspecialchars($active_chapter['topic']) ?></p>
             </div>
@@ -270,18 +322,18 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
             </a>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             <!-- Left: Subtopics -->
-            <div class="lg:col-span-4 bg-pastel-card p-4 rounded-2xl border border-blue-100 shadow-sm h-fit">
+            <div class="lg:col-span-4 bg-pastel-card p-5 rounded-2xl border border-blue-100 shadow-sm h-fit">
                 <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider px-3 mb-3">Subtopics</h2>
-                <div class="space-y-2">
+                <div class="space-y-2.5">
                     <?php foreach ($active_chapter['subtopics'] as $key => $subtopic): ?>
-                        <button onclick="selectSubtopic('<?= $key ?>')" id="subtopic-btn-<?= str_replace('.', '_', $key) ?>" class="subtopic-btn w-full text-left p-3.5 rounded-xl border transition <?= $key === $first_subtopic_key ? 'border-pastel-primary bg-blue-50/70 shadow-sm' : 'border-slate-100 hover:border-blue-200' ?>">
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-xs font-bold px-2 py-0.5 rounded-md <?= $subtopic['badge_color'] ?>"><?= $subtopic['status'] ?></span>
+                        <button onclick="selectSubtopic('<?= $key ?>')" id="subtopic-btn-<?= str_replace('.', '_', $key) ?>" class="subtopic-btn w-full text-left p-4 rounded-xl border transition <?= $key === $first_subtopic_key ? 'border-pastel-primary bg-blue-50/70 shadow-sm' : 'border-slate-100 hover:border-blue-200' ?>">
+                            <div class="flex justify-between items-center mb-1.5">
+                                <span class="text-xs font-bold px-2.5 py-0.5 rounded-md <?= $subtopic['badge_color'] ?>"><?= $subtopic['status'] ?></span>
                             </div>
-                            <h3 class="font-semibold text-sm text-pastel-text"><?= htmlspecialchars($subtopic['title']) ?></h3>
+                            <h3 class="font-bold text-base text-pastel-text"><?= htmlspecialchars($subtopic['title']) ?></h3>
                         </button>
                     <?php endforeach; ?>
                 </div>
@@ -291,45 +343,45 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
             <div class="lg:col-span-8 bg-pastel-card p-6 sm:p-8 rounded-2xl border border-blue-100 shadow-sm">
                 
                 <!-- Tabs -->
-                <div class="flex border-b border-slate-100 mb-6 gap-6 overflow-x-auto">
-                    <button onclick="switchTab('notes')" id="tab-btn-notes" class="pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition whitespace-nowrap">
+                <div class="flex border-b border-slate-100 mb-6 gap-8 overflow-x-auto">
+                    <button onclick="switchTab('notes')" id="tab-btn-notes" class="pb-3 text-base font-bold border-b-2 border-pastel-primary text-pastel-primary transition whitespace-nowrap">
                         📖 Notes
                     </button>
-                    <button onclick="switchTab('lessons')" id="tab-btn-lessons" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition whitespace-nowrap">
+                    <button onclick="switchTab('lessons')" id="tab-btn-lessons" class="pb-3 text-base font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition whitespace-nowrap">
                         ✏️ Lessons & Questions
                     </button>
-                    <button onclick="switchTab('resources')" id="tab-btn-resources" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition whitespace-nowrap">
-                        🔗 Additional Resources <span id="resource-badge-count" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-blue-100 text-blue-700 font-bold hidden"></span>
+                    <button onclick="switchTab('resources')" id="tab-btn-resources" class="pb-3 text-base font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition whitespace-nowrap">
+                        🔗 Additional Resources <span id="resource-badge-count" class="ml-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 font-bold hidden"></span>
                     </button>
                 </div>
 
-                <h2 id="active-title" class="text-xl font-bold text-pastel-text mb-4">--</h2>
+                <h2 id="active-title" class="text-2xl font-bold text-pastel-text mb-5">--</h2>
 
                 <!-- Notes View -->
                 <div id="view-notes" class="space-y-6">
                     <div>
                         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Overview</h3>
-                        <p id="note-overview" class="text-sm text-slate-600 bg-pastel-bg p-4 rounded-xl border border-blue-50 leading-relaxed"></p>
+                        <p id="note-overview" class="text-base text-slate-600 bg-pastel-bg p-5 rounded-xl border border-blue-50 leading-relaxed"></p>
                     </div>
                     <div>
                         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Key Steps</h3>
-                        <ul id="note-points" class="list-disc list-inside text-sm text-slate-600 space-y-1.5"></ul>
+                        <ul id="note-points" class="list-disc list-inside text-base text-slate-600 space-y-2"></ul>
                     </div>
                     <div>
                         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Worked Example</h3>
-                        <div id="note-example" class="p-4 bg-blue-50/50 border border-blue-100 rounded-xl text-center text-lg font-semibold text-pastel-text"></div>
+                        <div id="note-example" class="p-5 bg-blue-50/50 border border-blue-100 rounded-xl text-center text-lg font-semibold text-pastel-text"></div>
                     </div>
                 </div>
 
                 <!-- Lessons View -->
                 <div id="view-lessons" class="hidden space-y-4">
-                    <p class="text-sm text-slate-500 mb-2">Click on any lesson question below to jump directly into practice mode:</p>
+                    <p class="text-base text-slate-500 mb-2">Click on any lesson question below to jump directly into practice mode:</p>
                     <div id="questions-list" class="space-y-3"></div>
                 </div>
 
                 <!-- Additional Resources View (Optional Remedial Material) -->
                 <div id="view-resources" class="hidden space-y-4">
-                    <p class="text-sm text-slate-500 mb-2">Optional supplementary materials provided by your teacher to help reinforce core concepts:</p>
+                    <p class="text-base text-slate-500 mb-2">Optional supplementary materials provided by your teacher to help reinforce core concepts:</p>
                     <div id="resources-list" class="space-y-3"></div>
                 </div>
 

@@ -183,6 +183,17 @@ try {
         (1, 'Cherry Blossom: Multiplications', 1),
         (1, 'Volcanic Jungle: Fractions & Decimals', 1);");
 
+
+    // Seed chapter materials so the JOIN in module.php finds them
+    $pdo->exec("INSERT INTO chapter_materials (chapter_name, subtopic_name, title, file_path) VALUES 
+        ('Ancient Pyramid: Fundamentals', '1.1', 'Introduction to Fundamentals & Place Value', NULL),
+        ('Ancient Pyramid: Fundamentals', '1.2', 'Basic Operations & Fractions Review', NULL),
+        ('Cherry Blossom: Multiplications', '2.1', 'Multiplication Tables & Factors', NULL),
+        ('Cherry Blossom: Multiplications', '2.2', 'Simplifying Fractions to Lowest Terms', NULL),
+        ('Volcanic Jungle: Fractions & Decimals', '3.1', 'Mixed Numbers and Improper Fractions', NULL),
+        ('Volcanic Jungle: Fractions & Decimals', '3.2', 'Decimal Conversion and Advanced Operations', NULL);");
+
+        
     $pdo->exec("INSERT INTO student_progress (student_id, island_id, chapter_name, level, status) VALUES 
         (1, 1, 'Ancient Pyramid: Fundamentals', 3, 'Completed'),
         (1, 2, 'Cherry Blossom: Multiplications', 2, 'Completed'),

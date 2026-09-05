@@ -4,7 +4,7 @@ require_once __DIR__ . '/../config/db.php';
 // -------------------------------------------------------------------------
 // 1. Dynamic Student Data Fetching
 // -------------------------------------------------------------------------
-$student_id = $_SESSION['student_id'] ?? 1; 
+$student_id = $_SESSION['student_id'] ?? 1;
 
 $stmt_student = $pdo->prepare("
     SELECT s.name, s.score AS xp, c.name AS classroom_name
@@ -53,20 +53,20 @@ $progress_records = $stmt_progress->fetchAll(PDO::FETCH_KEY_PAIR); // [island_id
 $islands = [];
 foreach ($island_config as $id => $config) {
     $db_status = $progress_records[$id] ?? 'locked';
-    
+
     $ui_status = match (strtolower($db_status)) {
         'completed', 'mastered' => 'mastered',
-        'intermediate'          => 'intermediate',
-        'pending'               => 'pending',
+        'intermediate' => 'intermediate',
+        'pending' => 'pending',
         'in progress', 'beginner' => 'beginner',
-        default                 => 'locked',
+        default => 'locked',
     };
 
     $islands[$id] = [
-        'name'   => $config['name'],
-        'topic'  => $config['topic'],
-        'x'      => $config['x'],
-        'y'      => $config['y'],
+        'name' => $config['name'],
+        'topic' => $config['topic'],
+        'x' => $config['x'],
+        'y' => $config['y'],
         'status' => $ui_status
     ];
 }
@@ -104,7 +104,8 @@ foreach ($island_config as $id => $config) {
 <body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center justify-center p-4 pt-28">
 
     <!-- NAVBAR -->
-    <nav class="bg-pastel-nav fixed w-full h-20 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
+    <nav
+        class="bg-pastel-nav fixed w-full h-20 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
         <div class="w-full max-w-[85rem] mx-auto px-8 flex items-center justify-between">
 
             <!-- LOGO -->
@@ -121,27 +122,32 @@ foreach ($island_config as $id => $config) {
             <div class="hidden md:flex items-center justify-center flex-1 mx-6">
                 <ul class="flex items-center gap-3 text-lg font-bold">
                     <li>
-                        <a href="index.php" class="flex items-center px-6 py-3 rounded-2xl bg-pastel-primary text-white shadow-sm transition-all duration-200 hover:bg-pastel-hover hover:-translate-y-0.5">
+                        <a href="index.php"
+                            class="flex items-center px-6 py-3 rounded-2xl bg-pastel-primary text-white shadow-sm transition-all duration-200 hover:bg-pastel-hover hover:-translate-y-0.5">
                             <span>Home</span>
                         </a>
                     </li>
                     <li>
-                        <a href="discussion.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
+                        <a href="/Quality-Education/src/student/discussion.php"
+                            class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
                             <span>Discussion</span>
                         </a>
                     </li>
                     <li>
-                        <a href="module.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
+                        <a href="/Quality-Education/src/student/module.php"
+                            class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
                             <span>Modules</span>
                         </a>
                     </li>
                     <li>
-                        <a href="quiz.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
+                        <a href="/Quality-Education/src/student/quiz.php"
+                            class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
                             <span>Quizzes</span>
                         </a>
                     </li>
                     <li>
-                        <a href="history.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
+                        <a href="/Quality-Education/src/student/history.php"
+                            class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
                             <span>History</span>
                         </a>
                     </li>
@@ -150,8 +156,10 @@ foreach ($island_config as $id => $config) {
 
             <!-- PROFILE (STATIC DISPLAY) -->
             <div class="flex items-center flex-shrink-0">
-                <div class="flex items-center gap-3 py-2.5 px-4 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm">
-                    <div class="w-10 h-10 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-lg">
+                <div
+                    class="flex items-center gap-3 py-2.5 px-4 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm">
+                    <div
+                        class="w-10 h-10 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-lg">
                         <?= strtoupper(substr($student['name'], 0, 1)) ?>
                     </div>
                     <span class="text-lg font-bold text-pastel-text hidden sm:block">
@@ -160,31 +168,48 @@ foreach ($island_config as $id => $config) {
                 </div>
 
                 <!-- MOBILE MENU BUTTON -->
-                <button data-collapse-toggle="navbar-user" type="button" class="inline-flex items-center p-2.5 ml-3 w-12 h-12 justify-center text-pastel-primary rounded-2xl bg-pastel-card border-2 border-pastel-primary/20 md:hidden hover:bg-pastel-bg focus:outline-none focus:ring-2 focus:ring-pastel-primary/30" aria-controls="navbar-user" aria-expanded="false">
+                <button data-collapse-toggle="navbar-user" type="button"
+                    class="inline-flex items-center p-2.5 ml-3 w-12 h-12 justify-center text-pastel-primary rounded-2xl bg-pastel-card border-2 border-pastel-primary/20 md:hidden hover:bg-pastel-bg focus:outline-none focus:ring-2 focus:ring-pastel-primary/30"
+                    aria-controls="navbar-user" aria-expanded="false">
                     <span class="sr-only">Open main menu</span>
-                    <svg class="w-7 h-7" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 7h14M5 12h14M5 17h14" />
+                    <svg class="w-7 h-7" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            d="M5 7h14M5 12h14M5 17h14" />
                     </svg>
                 </button>
             </div>
         </div>
 
         <!-- MOBILE MENU -->
-        <div class="hidden w-full md:hidden px-5 pb-4 absolute top-20 left-0 bg-pastel-nav border-b-2 border-pastel-primary/20 shadow-lg" id="navbar-user">
-            <ul class="flex flex-col gap-2 text-base font-bold bg-pastel-card p-4 rounded-2xl border-2 border-pastel-nav shadow-sm">
-                <li><a href="index.php" class="block py-3 px-4 text-white bg-pastel-primary rounded-xl shadow-sm">Home</a></li>
-                <li><a href="discussion.php" class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Discussion</a></li>
-                <li><a href="module.php" class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Modules</a></li>
-                <li><a href="quiz.php" class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Quizzes</a></li>
-                <li><a href="history.php" class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">History</a></li>
+        <div class="hidden w-full md:hidden px-5 pb-4 absolute top-20 left-0 bg-pastel-nav border-b-2 border-pastel-primary/20 shadow-lg"
+            id="navbar-user">
+            <ul
+                class="flex flex-col gap-2 text-base font-bold bg-pastel-card p-4 rounded-2xl border-2 border-pastel-nav shadow-sm">
+                <li><a href="index.php"
+                        class="block py-3 px-4 text-white bg-pastel-primary rounded-xl shadow-sm">Home</a></li>
+                <li><a href="discussion.php"
+                        class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Discussion</a>
+                </li>
+                <li><a href="module.php"
+                        class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Modules</a>
+                </li>
+                <li><a href="quiz.php"
+                        class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Quizzes</a>
+                </li>
+                <li><a href="history.php"
+                        class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">History</a>
+                </li>
             </ul>
         </div>
     </nav>
 
     <!-- HEADER / BANNER -->
-    <div class="w-full max-w-[85rem] flex justify-between items-center mb-4 bg-pastel-card border border-pastel-nav px-6 py-3.5 rounded-2xl shadow-md">
+    <div
+        class="w-full max-w-[85rem] flex justify-between items-center mb-4 bg-pastel-card border border-pastel-nav px-6 py-3.5 rounded-2xl shadow-md">
         <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl bg-pastel-badge border border-pastel-nav flex items-center justify-center font-black text-pastel-text text-base">
+            <div
+                class="w-10 h-10 rounded-xl bg-pastel-badge border border-pastel-nav flex items-center justify-center font-black text-pastel-text text-base">
                 <?= strtoupper(substr($student['name'], 0, 1)) ?>
             </div>
             <div>
@@ -195,19 +220,24 @@ foreach ($island_config as $id => $config) {
             </div>
         </div>
         <div class="flex items-center space-x-3 text-sm font-bold">
-            <div class="bg-pastel-bg text-pastel-text px-3 py-1.5 rounded-xl border border-pastel-nav flex items-center gap-1.5">
+            <div
+                class="bg-pastel-bg text-pastel-text px-3 py-1.5 rounded-xl border border-pastel-nav flex items-center gap-1.5">
                 ⭐ Level <?= $student['level'] ?>
             </div>
-            <div class="bg-pastel-bg text-pastel-text px-3 py-1.5 rounded-xl border border-pastel-nav flex items-center gap-1.5">
+            <div
+                class="bg-pastel-bg text-pastel-text px-3 py-1.5 rounded-xl border border-pastel-nav flex items-center gap-1.5">
                 🪙 <?= $student['xp'] ?> XP
             </div>
         </div>
     </div>
 
     <!-- MAP CONTAINER -->
-    <div class="relative w-full max-w-[85rem] aspect-[16/8.5] rounded-2xl overflow-hidden border-4 border-pastel-card shadow-xl bg-pastel-bg">
+    <div
+        class="relative w-full max-w-[85rem] aspect-[16/8.5] rounded-2xl overflow-hidden border-4 border-pastel-card shadow-xl bg-pastel-bg">
 
-        <img src="map.jpeg" alt="EduHunt Map" class="absolute inset-0 w-full h-full object-cover select-none z-0">
+        <img src="/Quality-Education/src/student/map.jpeg" alt="EduHunt Map"
+            class="absolute inset-0 w-full h-full object-cover select-none z-0">
+
 
         <?php foreach ($islands as $id => $island):
             $status = $island['status'];
@@ -232,12 +262,14 @@ foreach ($island_config as $id => $config) {
                 $pinColor = "bg-emerald-500 border-white text-white hover:bg-emerald-400 cursor-pointer hover:scale-110 shadow-emerald-500/50 shadow-lg";
                 $statusLabel = "Mastered! ✨";
             }
-        ?>
-            <div class="absolute transform -translate-x-1/2 -translate-y-1/2 z-30 <?= $pulse ?>" style="left: <?= $island['x'] ?>%; top: <?= $island['y'] ?>%;">
+            ?>
+            <div class="absolute transform -translate-x-1/2 -translate-y-1/2 z-30 <?= $pulse ?>"
+                style="left: <?= $island['x'] ?>%; top: <?= $island['y'] ?>%;">
 
                 <?php if ($status !== 'locked'): ?>
                     <a href="history.php?island_id=<?= $id ?>" class="flex flex-col items-center group">
-                        <div class="w-12 h-12 rounded-2xl border-2 flex items-center justify-center font-black text-lg transition-all duration-200 <?= $pinColor ?>">
+                        <div
+                            class="w-12 h-12 rounded-2xl border-2 flex items-center justify-center font-black text-lg transition-all duration-200 <?= $pinColor ?>">
                             <?php if ($status === 'mastered'): ?>
                                 ✓
                             <?php elseif ($status === 'pending'): ?>
@@ -246,13 +278,17 @@ foreach ($island_config as $id => $config) {
                                 <?= $id ?>
                             <?php endif; ?>
                         </div>
-                        <div class="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/90 text-white text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap mt-2 border border-slate-700 shadow-xl z-40 pointer-events-none">
-                            Island <?= $id ?>: <?= htmlspecialchars($island['name']) ?> (<span class="text-pastel-primary"><?= htmlspecialchars($island['topic']) ?></span>) — <span class="text-amber-300"><?= $statusLabel ?></span>
+                        <div
+                            class="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/90 text-white text-xs font-bold px-3 py-1.5 rounded-xl whitespace-nowrap mt-2 border border-slate-700 shadow-xl z-40 pointer-events-none">
+                            Island <?= $id ?>: <?= htmlspecialchars($island['name']) ?> (<span
+                                class="text-pastel-primary"><?= htmlspecialchars($island['topic']) ?></span>) — <span
+                                class="text-amber-300"><?= $statusLabel ?></span>
                         </div>
                     </a>
                 <?php else: ?>
                     <div class="flex flex-col items-center group cursor-not-allowed">
-                        <div class="w-11 h-11 rounded-2xl border-2 flex items-center justify-center font-bold text-xs <?= $pinColor ?>">
+                        <div
+                            class="w-11 h-11 rounded-2xl border-2 flex items-center justify-center font-bold text-xs <?= $pinColor ?>">
                             🔒
                         </div>
                     </div>
@@ -264,13 +300,18 @@ foreach ($island_config as $id => $config) {
     </div>
 
     <!-- LEGEND FOOTER -->
-    <div class="mt-4 w-full max-w-[85rem] flex flex-col sm:flex-row justify-between items-center bg-pastel-card border border-pastel-nav px-6 py-3 rounded-xl shadow-sm text-xs font-semibold text-pastel-text gap-3">
+    <div
+        class="mt-4 w-full max-w-[85rem] flex flex-col sm:flex-row justify-between items-center bg-pastel-card border border-pastel-nav px-6 py-3 rounded-xl shadow-sm text-xs font-semibold text-pastel-text gap-3">
         <div class="text-pastel-text font-bold">🗺️ Island Adventure Legend:</div>
         <div class="flex items-center space-x-5">
-            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-200 border border-rose-300"></span> Beginner</div>
-            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-sky-200 border border-sky-300"></span> Intermediate</div>
-            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-200 border border-amber-300"></span> Pending Review</div>
-            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> Mastered</div>
+            <div class="flex items-center gap-1.5"><span
+                    class="w-3 h-3 rounded-full bg-rose-200 border border-rose-300"></span> Beginner</div>
+            <div class="flex items-center gap-1.5"><span
+                    class="w-3 h-3 rounded-full bg-sky-200 border border-sky-300"></span> Intermediate</div>
+            <div class="flex items-center gap-1.5"><span
+                    class="w-3 h-3 rounded-full bg-amber-200 border border-amber-300"></span> Pending Review</div>
+            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> Mastered
+            </div>
             <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-slate-200"></span> Locked</div>
         </div>
     </div>
