@@ -2,11 +2,14 @@
 require_once 'db.php';
 
 // Drop tables if they exist
+$pdo->exec("DROP TABLE IF EXISTS chapter_quizzes;");
+$pdo->exec("DROP TABLE IF EXISTS chapter_materials;");
+$pdo->exec("DROP TABLE IF EXISTS classroom_chapters;");
 $pdo->exec("DROP TABLE IF EXISTS student_progress;");
 $pdo->exec("DROP TABLE IF EXISTS students;");
 $pdo->exec("DROP TABLE IF EXISTS classrooms;");
 
-// Create tables with SQLite syntax
+// Create tables with SQLite syntax[cite: 4]
 $pdo->exec("CREATE TABLE classrooms (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -29,7 +32,33 @@ $pdo->exec("CREATE TABLE student_progress (
     FOREIGN KEY(student_id) REFERENCES students(id)
 );");
 
-// Seed Classrooms
+$pdo->exec("CREATE TABLE classroom_chapters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    classroom_id INTEGER NOT NULL,
+    chapter_name TEXT NOT NULL,
+    is_unlocked INTEGER DEFAULT 0,
+    FOREIGN KEY(classroom_id) REFERENCES classrooms(id)
+);");
+
+$pdo->exec("CREATE TABLE chapter_materials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chapter_name TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);");
+
+$pdo->exec("CREATE TABLE chapter_quizzes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chapter_name TEXT NOT NULL,
+    question TEXT NOT NULL,
+    option_a TEXT NOT NULL,
+    option_b TEXT NOT NULL,
+    option_c TEXT NOT NULL,
+    option_d TEXT NOT NULL,
+    correct_option TEXT NOT NULL
+);");
+
+// Seed Classrooms[cite: 4]
 $pdo->exec("INSERT INTO classrooms (id, name, avg_mastery) VALUES 
     (1, 'Grade 5 Mathematics - Section A', '68%'),
     (2, 'Grade 5 Mathematics - Section B', '54%'),
@@ -56,6 +85,14 @@ foreach ($students_c1 as $s) {
         $stmt_p->execute([$student_id, $chapters[$index], $level]);
     }
 }
+
+// Seed initial global chapter unlocks (Chapter 1 unlocked by default for classrooms)
+foreach ([1, 2, 3] as $cid) {
+    $stmt_cc = $pdo->prepare("INSERT INTO classroom_chapters (classroom_id, chapter_name, is_unlocked) VALUES (?, ?, ?)");
+    $stmt_cc->execute([$cid, "Fractions (Ch 1)", 1]);
+    $stmt_cc->execute([$cid, "Decimals (Ch 2)", 0]);
+    $stmt_cc->execute([$cid, "Percentages (Ch 3)", 0]);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -64,11 +101,4 @@ foreach ($students_c1 as $s) {
     <title>SQLite Setup Complete</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-50 flex items-center justify-center h-screen">
-    <div class="bg-white p-8 rounded-xl shadow-sm border text-center">
-        <h1 class="text-xl font-bold text-slate-800 mb-2">SQLite Database Setup Successful!</h1>
-        <p class="text-slate-500 text-sm mb-6">`system.db` has been created in your project root.</p>
-        <a href="src/teacher/teacher_home.php" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg transition">Go to Teacher Dashboard &rarr;</a>
-    </div>
-</body>
 </html>
