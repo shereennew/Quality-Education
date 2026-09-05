@@ -11,7 +11,7 @@ $classrooms = $pdo->query("SELECT * FROM classrooms")->fetchAll(PDO::FETCH_ASSOC
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teacher Dashboard - EduPulse</title>
+    <title>Teacher Dashboard - EduHunt</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -39,7 +39,7 @@ $classrooms = $pdo->query("SELECT * FROM classrooms")->fetchAll(PDO::FETCH_ASSOC
     <header class="bg-pastel-nav border-b border-blue-100 sticky top-0 z-50 shadow-sm">
         <div class="max-w-7xl mx-auto px-6 py-3.5 flex justify-between items-center">
             <div class="flex items-center space-x-4">
-                <h1 class="text-base font-bold text-pastel-text tracking-wide">EduPulse Teacher Dashboard</h1>
+                <h1 class="text-base font-bold text-pastel-text tracking-wide">EduHunt Teacher Dashboard</h1>
             </div>
             <div class="flex items-center space-x-3">
                 <div class="bg-pastel-badge text-pastel-hover text-xs font-semibold px-3 py-1 rounded-full border border-blue-100">

@@ -5,7 +5,7 @@ require_once __DIR__ . '/../config/db.php';
 
 $class_id = isset($_GET['id']) ? intval($_GET['id']) : 1;
 
-// Ensure classroom_chapters table exists for global chapter locking/unlocking
+// Ensure classroom_chapters table exists for global chapter locking/unlocking[cite: 4]
 $pdo->exec("CREATE TABLE IF NOT EXISTS classroom_chapters (
     id INT AUTO_INCREMENT PRIMARY KEY,
     classroom_id INT NOT NULL,
@@ -85,6 +85,7 @@ foreach ($students_raw as $s) {
         "id" => $s['id'],
         "name" => $s['name'],
         "status" => $s['status'],
+        "score" => $s['score'] ?? 0,
         "progress" => $student_levels,
         "summary" => $percentage . "%"
     ];
@@ -106,6 +107,26 @@ foreach ($chapters as $chapter_name) {
     $chart_data['foundation'][] = intval($res[1] ?? 0);
     $chart_data['intermediate'][] = intval($res[2] ?? 0);
     $chart_data['advanced'][] = intval($res[3] ?? 0);
+}
+
+// Helper function to classify student quiz scores based on the Malaysian standard range
+function getPerformanceTier($score) {
+    if ($score >= 80) {
+        return [
+            'label' => 'Good',
+            'badge_class' => 'bg-emerald-50 text-emerald-800 border-emerald-200'
+        ];
+    } elseif ($score >= 50) {
+        return [
+            'label' => 'Intermediate',
+            'badge_class' => 'bg-amber-50 text-amber-800 border-amber-200'
+        ];
+    } else {
+        return [
+            'label' => 'Low',
+            'badge_class' => 'bg-rose-50 text-rose-800 border-rose-200'
+        ];
+    }
 }
 
 // Render badge depending on whether chapter is globally unlocked and student progress
@@ -172,11 +193,11 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
             <div class="flex items-center space-x-3">
                 <a href="reports.php?class_id=<?php echo $class_id; ?>"
                     class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-3.5 py-1.5 rounded-xl transition shadow-sm">
-                    📈 Class Reports
+                    📊 Class Reports
                 </a>
                 <div
                     class="bg-pastel-badge text-pastel-hover text-xs font-semibold px-3 py-1 rounded-full border border-blue-100">
-                    📊 Live Progress View
+                    🟢 Live Progress View
                 </div>
             </div>
         </div>
@@ -184,22 +205,103 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
 
     <main class="max-w-7xl mx-auto px-6 py-8 space-y-6 flex-1 w-full">
 
-        <!-- Overall Summary Graph Section  -->
+        <!-- Overall Summary Graph & Rankings Section -->
         <section class="bg-pastel-card rounded-2xl shadow-sm border border-blue-100 p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-base font-bold text-pastel-text">Class Skill Distribution Overview</h2>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                <div class="md:col-span-2 h-72 relative">
-                    <canvas id="classProgressChart"></canvas>
-                </div>
-                <div class="space-y-4 border-l pl-6 border-blue-100">
-                    <div class="bg-pastel-badge/60 border-l-4 border-pastel-primary p-3.5 rounded-r-xl">
-                        <p class="text-xs font-bold text-pastel-text uppercase">Visualization</p>
-                        <p class="text-xs text-slate-600 mt-1 leading-relaxed">Analyzing student progression
-                            distribution per tier across all chapters.</p>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+                <!-- Chart Container (Takes up 2 columns) -->
+                <div class="lg:col-span-2 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-base font-bold text-pastel-text">Class Skill Distribution Overview</h2>
+                            <p class="text-xs text-slate-400">Analyzing student progression distribution per tier across
+                                all chapters.</p>
+                        </div>
+                    </div>
+
+                    <div class="h-72 relative">
+                        <canvas id="classProgressChart"></canvas>
                     </div>
                 </div>
+
+                <!-- Student Rank / Leaderboard Card (Weak Performers Focus) -->
+                <div class="bg-pastel-bg/40 rounded-2xl border border-blue-50 p-5 flex flex-col justify-between h-full">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-bold text-pastel-text">Student Rankings</h3>
+                            <span
+                                class="bg-rose-50 text-rose-700 text-xs font-semibold px-2.5 py-1 rounded-full border border-rose-100">Needs
+                                Attention</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-4">Students with lowest scores requiring immediate academic
+                            intervention.</p>
+
+                        <div class="space-y-2.5">
+                            <?php
+                            // Fetch weak performers for this specific classroom, ordered by lowest score first
+                            try {
+                                $stmt_rank = $pdo->prepare("SELECT name, score FROM students WHERE classroom_id = ? ORDER BY score ASC LIMIT 5");
+                                $stmt_rank->execute([$class_id]);
+                                $rankings = $stmt_rank->fetchAll(PDO::FETCH_ASSOC);
+                            } catch (Exception $e) {
+                                $rankings = [];
+                            }
+                            ?>
+
+                            <?php if (count($rankings) > 0): ?>
+                                <?php foreach ($rankings as $index => $student): 
+                                    $tier = getPerformanceTier($student['score']);
+                                ?>
+                                    <div
+                                        class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-blue-50 text-xs shadow-2xs">
+                                        <div class="flex items-center space-x-2.5">
+                                            <span class="font-bold text-rose-500 w-5">#<?php echo $index + 1; ?></span>
+                                            <span
+                                                class="font-semibold text-pastel-text"><?php echo htmlspecialchars($student['name']); ?></span>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-slate-500 font-medium"><?php echo $student['score']; ?> pts</span>
+                                            <span class="font-bold px-2 py-0.5 rounded-lg border text-[10px] <?php echo $tier['badge_class']; ?>">
+                                                <?php echo $tier['label']; ?>
+                                            </span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <!-- Mock items if database table isn't populated yet -->
+                                <?php 
+                                    $mock_weak = [
+                                        ['name' => 'Elias Thorne', 'score' => 30],
+                                        ['name' => 'Carlos Mendez', 'score' => 45],
+                                        ['name' => 'Gabe Logan', 'score' => 50]
+                                    ];
+                                    foreach ($mock_weak as $index => $mw):
+                                        $tier = getPerformanceTier($mw['score']);
+                                ?>
+                                    <div
+                                        class="flex items-center justify-between p-2.5 rounded-xl bg-white border border-blue-50 text-xs shadow-2xs">
+                                        <div class="flex items-center space-x-2.5">
+                                            <span class="font-bold text-rose-500 w-5">#<?php echo $index + 1; ?></span>
+                                            <span class="font-semibold text-pastel-text"><?php echo $mw['name']; ?></span>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-slate-500 font-medium"><?php echo $mw['score']; ?> pts</span>
+                                            <span class="font-bold px-2 py-0.5 rounded-lg border text-[10px] <?php echo $tier['badge_class']; ?>">
+                                                <?php echo $tier['label']; ?>
+                                            </span>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-blue-100/60 text-center">
+                        <a href="students_overview.php"
+                            class="text-xs font-semibold text-pastel-hover hover:underline">View All Students &rarr;</a>
+                    </div>
+                </div>
+
             </div>
         </section>
 
