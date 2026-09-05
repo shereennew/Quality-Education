@@ -1,10 +1,11 @@
 <?php
-<<<<<<<<< Temporary merge branch 1
+require_once __DIR__ . '/../config/db.php';
+
 // Mock student data for UI prototyping
 $student = [
     'name' => 'Aina',
     'level' => 4,
-    'xp'    => 320
+    'xp' => 320
 ];
 
 // Mock database / chapters matching module.php
@@ -23,132 +24,24 @@ $chapters = [
 $selected_chap_id = isset($_GET['chapter']) && isset($chapters[$_GET['chapter']]) ? (int)$_GET['chapter'] : 1;
 $chapter_info = $chapters[$selected_chap_id];
 
-// Mock section quizzes and overall quiz based on chapter
-$section_quizzes = [
-    '1.1' => [
-        'title' => 'Place Value & Digit Values',
-        'desc' => 'Test your understanding of place values up to millions.',
-        'questions' => [
-            [
-                'q' => 'What is the value of 7 in 472,150?',
-                'options' => ['7,000', '70,000', '700,000', '700'],
-                'ans' => 1
-            ],
-            [
-                'q' => 'Which digit is in the ten-thousands place in 834,219?',
-                'options' => ['8', '3', '4', '2'],
-                'ans' => 1
-            ]
-        ]
-    ],
-    '1.2' => [
-        'title' => 'Addition & Subtraction',
-        'desc' => 'Practice aligning and calculating large number sums and differences.',
-        'questions' => [
-            [
-                'q' => 'Calculate: 45,210 + 12,345',
-                'options' => ['57,555', '56,555', '57,455', '58,555'],
-                'ans' => 0
-            ],
-            [
-                'q' => 'What is 80,000 - 34,200?',
-                'options' => ['46,800', '45,800', '45,700', '46,200'],
-                'ans' => 1
-            ]
-=========
-$student_name = "Alex Tan";
-
-// 顶部 Navigation 配置
-$nav_items = [
-    'home'     => ['label' => 'Home',     'url' => 'student_dashboard.php?page=home'],
-    'notes'    => ['label' => 'Notes',    'url' => 'student_dashboard.php?page=notes'],
-    'practice' => ['label' => 'Practice', 'url' => 'student_dashboard.php?page=practice'],
-    'quiz'     => ['label' => 'Quiz',     'url' => 'quiz.php'],
-    'module'   => ['label' => 'Module',   'url' => 'module.php']
-];
-
-// 章节信息
-$chapter_info = [
-    'title' => 'Chapter 4: Waterfall Forest',
-    'topic' => 'Adding & Subtracting Unlike Fractions'
-];
-
-// 分小节练习题 (Section Quizzes)
-$section_quizzes = [
-    '4.1' => [
-        'title' => '4.1 Finding Common Denominators',
-        'desc' => '3 Questions • Focus on Least Common Multiples (LCM)',
-        'questions' => [
-            ['q' => 'What is the Lowest Common Denominator (LCD) for 1/3 and 1/4?', 'options' => ['7', '12', '6', '24'], 'ans' => 1],
-            ['q' => 'Convert 2/5 to an equivalent fraction with denominator 15:', 'options' => ['4/15', '6/15', '5/15', '8/15'], 'ans' => 1],
-            ['q' => 'What is the LCD for 3/8 and 1/6?', 'options' => ['48', '14', '24', '18'], 'ans' => 2]
-        ]
-    ],
-    '4.2' => [
-        'title' => '4.2 Adding Unlike Fractions',
-        'desc' => '3 Questions • Focus on converting & adding numerators',
-        'questions' => [
-            ['q' => 'Solve: 1/2 + 1/4 =', 'options' => ['2/6', '3/4', '2/4', '3/8'], 'ans' => 1],
-            ['q' => 'Solve: 2/5 + 1/3 =', 'options' => ['11/15', '3/8', '3/15', '7/15'], 'ans' => 0],
-            ['q' => 'Solve: 1/6 + 2/3 =', 'options' => ['3/9', '5/6', '3/6', '4/6'], 'ans' => 1]
-        ]
-    ],
-    '4.3' => [
-        'title' => '4.3 Subtracting Unlike Fractions',
-        'desc' => '3 Questions • Focus on subtracting unequal parts',
-        'questions' => [
-            ['q' => 'Solve: 3/4 - 1/2 =', 'options' => ['2/2', '1/4', '2/4', '1/2'], 'ans' => 1],
-            ['q' => 'Solve: 5/6 - 1/3 =', 'options' => ['4/3', '1/2', '4/6', '2/3'], 'ans' => 1],
-            ['q' => 'Solve: 7/10 - 2/5 =', 'options' => ['5/5', '3/10', '5/10', '1/5'], 'ans' => 1]
->>>>>>>>> Temporary merge branch 2
-        ]
-    ]
-];
-
-<<<<<<<<< Temporary merge branch 1
-$overall_chapter_quiz = [
-    'title' => 'Chapter ' . $selected_chap_id . ' Comprehensive Exam',
-    'desc' => 'Full assessment covering all core concepts in this module.',
-    'questions' => [
-        [
-            'q' => 'What is the value of 7 in 472,150?',
-            'options' => ['7,000', '70,000', '700,000', '700'],
-            'ans' => 1
-        ],
-        [
-            'q' => 'Calculate: 45,210 + 12,345',
-            'options' => ['57,555', '56,555', '57,455', '58,555'],
-            'ans' => 0
-        ],
-        [
-            'q' => 'Which digit is in the ten-thousands place in 834,219?',
-            'options' => ['8', '3', '4', '2'],
-            'ans' => 1
-        ]
-    ]
-=========
-// 整章综合测试 (Overall Chapter Quiz)
-$overall_chapter_quiz = [
-    'title' => 'Chapter 4 Overall Master Quiz',
-    'desc' => '9 Mixed Questions • Full Chapter Mastery Test',
-    'questions' => array_merge(
-        $section_quizzes['4.1']['questions'],
-        $section_quizzes['4.2']['questions'],
-        $section_quizzes['4.3']['questions']
-    )
->>>>>>>>> Temporary merge branch 2
-];
+// Teacher-created chapter quizzes are available here as assigned quizzes.
+$assigned_quizzes = [];
+try {
+    $stmt_assigned = $pdo->query("SELECT * FROM chapter_quizzes ORDER BY chapter_name, id");
+    foreach ($stmt_assigned->fetchAll(PDO::FETCH_ASSOC) as $quiz) {
+        $assigned_quizzes[$quiz['chapter_name']][] = $quiz;
+    }
+} catch (PDOException $e) {
+    // Keep the practice quiz available if the database has not been initialized yet.
+    $assigned_quizzes = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<<<<<<<<< Temporary merge branch 1
     <title>Eduhunt - Quizzes</title>
-=========
-    <title>Quiz Center - <?= htmlspecialchars($student_name) ?></title>
->>>>>>>>> Temporary merge branch 2
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -171,9 +64,9 @@ $overall_chapter_quiz = [
     </script>
     <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.css" rel="stylesheet" />
 </head>
-<body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center justify-center p-6 pt-32">
+<body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center p-6 pt-32">
 
-    <!-- NAV BAR -->
+    <!-- EXACT NAV BAR -->
     <nav class="bg-pastel-nav fixed w-full h-24 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
         <div class="w-full max-w-[90rem] mx-auto px-10 flex items-center justify-between">
             
@@ -201,12 +94,12 @@ $overall_chapter_quiz = [
                         </a>
                     </li>
                     <li>
-                        <a href="module.php" class="flex items-center px-7 py-4 rounded-2xl bg-pastel-primary text-white shadow-md transition-all duration-200 hover:bg-pastel-hover hover:-translate-y-0.5">
+                        <a href="module.php" class="flex items-center px-6 py-4 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
                             <span>Modules</span>
                         </a>
                     </li>
                     <li>
-                        <a href="quiz.php" class="flex items-center px-6 py-4 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
+                        <a href="quiz.php" class="flex items-center px-7 py-4 rounded-2xl bg-pastel-primary text-white shadow-md transition-all duration-200 hover:bg-pastel-hover hover:-translate-y-0.5">
                             <span>Quizzes</span>
                         </a>
                     </li>
@@ -217,10 +110,10 @@ $overall_chapter_quiz = [
             <div class="flex items-center flex-shrink-0 relative">
                 <button type="button" class="flex items-center gap-3 py-3 px-5 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm hover:border-pastel-primary/50 hover:shadow-md transition-all duration-200" id="user-menu-button" aria-expanded="false" data-dropdown-toggle="user-dropdown" data-dropdown-placement="bottom">
                     <div class="w-12 h-12 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-xl">
-                        <?= htmlspecialchars(strtoupper(substr($student['name'], 0, 1))) ?>
+                        <?= strtoupper(substr($student['name'], 0, 1)) ?>
                     </div>
                     <span class="text-xl font-bold text-pastel-text hidden sm:block">
-                        <?= htmlspecialchars($student['name']) ?>
+                        <?= $student['name'] ?>
                     </span>
                     <svg class="w-5 h-5 text-pastel-primary" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m19 9-7 7-7-7" />
@@ -230,8 +123,8 @@ $overall_chapter_quiz = [
                 <!-- PROFILE DROPDOWN -->
                 <div class="z-50 hidden bg-pastel-card border-2 border-pastel-nav rounded-2xl shadow-xl w-60 mt-2" id="user-dropdown">
                     <div class="px-5 py-4 border-b-2 border-pastel-nav">
-                        <span class="block text-lg font-bold text-pastel-text"><?= htmlspecialchars($student['name']) ?></span>
-                        <span class="block text-sm text-pastel-primary font-semibold mt-1">Level <?= (int)$student['level'] ?></span>
+                        <span class="block text-lg font-bold text-pastel-text"><?= $student['name'] ?></span>
+                        <span class="block text-sm text-pastel-primary font-semibold mt-1">Level <?= $student['level'] ?></span>
                     </div>
                     <ul class="p-2 text-lg text-pastel-text font-medium" aria-labelledby="user-menu-button">
                         <li><a href="#" class="block w-full px-4 py-3 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Profile</a></li>
@@ -255,150 +148,148 @@ $overall_chapter_quiz = [
             <ul class="flex flex-col gap-2 text-lg font-bold bg-pastel-card p-4 rounded-2xl border-2 border-pastel-nav shadow-sm">
                 <li><a href="index.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Home</a></li>
                 <li><a href="discussion.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Discussion</a></li>
-                <li><a href="module.php" class="block py-4 px-5 text-white bg-pastel-primary rounded-xl shadow-sm">Modules</a></li>
-                <li><a href="quiz.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Quizzes</a></li>
+                <li><a href="module.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Modules</a></li>
+                <li><a href="quiz.php" class="block py-4 px-5 text-white bg-pastel-primary rounded-xl shadow-sm">Quizzes</a></li>
             </ul>
         </div>
     </nav>
 
-    <!-- Main Section -->
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Main Content -->
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
         
-        <!-- Chapter Selector Bar -->
-        <div class="mb-6 flex gap-3 overflow-x-auto pb-2">
-            <?php foreach ($all_chapters as $chap): ?>
-                <?php $chap_num = (int)$chap['id']; ?>
-                <a href="module.php?chap=<?= $chap_num ?>" class="px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm whitespace-nowrap flex items-center gap-2 <?= $chap_num === $selected_chap_id ? 'bg-pastel-primary text-white' : 'bg-pastel-card text-slate-600 hover:bg-blue-50 border border-blue-100' ?>">
-                    <span>Chapter <?= $chap_num ?></span>
-                </a>
-            <?php endforeach; ?>
-        </div>
-
-        <!-- Header -->
-        <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm mb-6 flex justify-between items-center">
+        <!-- Header Banner -->
+        <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Quiz Center</span>
-<<<<<<<<< Temporary merge branch 1
+                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Quiz Center</span>
                 <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_info['title']) ?></h1>
                 <p class="text-sm text-slate-500 mt-0.5"><?= htmlspecialchars($chapter_info['topic']) ?></p>
             </div>
             <a href="module.php?chap=<?= $selected_chap_id ?>" class="text-xs font-semibold px-3 py-2 bg-blue-50 text-pastel-hover hover:bg-blue-100 rounded-xl border border-blue-100 transition">
                 ← Back to Module Notes
-=========
-                <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= $chapter_info['title'] ?></h1>
-                <p class="text-sm text-slate-500 mt-0.5"><?= $chapter_info['topic'] ?></p>
-            </div>
-            <a href="student_dashboard.php" class="text-xs font-semibold px-3 py-2 bg-blue-50 text-pastel-hover hover:bg-blue-100 rounded-xl border border-blue-100 transition">
-                ← Back to Dashboard
->>>>>>>>> Temporary merge branch 2
             </a>
         </div>
 
         <!-- QUIZ MENU SELECTION VIEW -->
-        <div id="quiz-menu" class="space-y-8">
+        <div id="quiz-menu" class="space-y-6">
             
-            <!-- SECTION 1: Subtopic / Section Practice Quizzes -->
-            <div>
-                <div class="flex items-center justify-between mb-4">
+            <!-- AI Dynamic Generator Banner -->
+            <div class="bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 p-6 rounded-2xl border border-purple-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div>
+                    <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Powered by Gemini AI</span>
+                    <h2 class="text-xl font-bold text-pastel-text mt-0.5">Generate Dynamic Chapter Quiz ✨</h2>
+                    <p class="text-xs text-slate-600 mt-1">Instantly build custom multiple-choice questions tailored to this module using AI.</p>
+                </div>
+                <button onclick="fetchAIQuiz('<?= htmlspecialchars($chapter_info['title'] . ' - ' . $chapter_info['topic']) ?>')" class="w-full sm:w-auto px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition whitespace-nowrap flex items-center justify-center gap-2">
+                    <span>Generate AI Quiz ⚡</span>
+                </button>
+            </div>
+
+            <!-- TEACHER-ASSIGNED QUIZZES -->
+            <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
+                <div class="flex items-start justify-between gap-4 mb-4">
                     <div>
-                        <h2 class="text-lg font-bold text-pastel-text">1. Section Practice Quizzes</h2>
-                        <p class="text-xs text-slate-500">Practice targeted questions section by section.</p>
+                        <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">Teacher assigned</span>
+                        <h2 class="text-xl font-bold text-pastel-text mt-0.5">Complete Your Assigned Quizzes</h2>
+                        <p class="text-xs text-slate-600 mt-1">Choose a quiz prepared by your teacher to start answering the questions.</p>
                     </div>
-                    <span class="text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-md">Short & Focused</span>
+                    <span class="hidden sm:block text-2xl">📝</span>
                 </div>
 
-<<<<<<<<< Temporary merge branch 1
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-=========
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
->>>>>>>>> Temporary merge branch 2
-                    <?php foreach ($section_quizzes as $code => $s_quiz): ?>
-                        <div class="bg-pastel-card p-5 rounded-2xl border border-blue-100 shadow-sm flex flex-col justify-between hover:border-pastel-primary transition">
-                            <div>
-                                <span class="text-xs font-bold text-pastel-primary">Section <?= $code ?></span>
-<<<<<<<<< Temporary merge branch 1
-                                <h3 class="font-bold text-base text-pastel-text mt-1"><?= htmlspecialchars($s_quiz['title']) ?></h3>
-                                <p class="text-xs text-slate-500 mt-2 leading-relaxed"><?= htmlspecialchars($s_quiz['desc']) ?></p>
-=========
-                                <h3 class="font-bold text-base text-pastel-text mt-1"><?= $s_quiz['title'] ?></h3>
-                                <p class="text-xs text-slate-500 mt-2 leading-relaxed"><?= $s_quiz['desc'] ?></p>
->>>>>>>>> Temporary merge branch 2
+                <?php if (!empty($assigned_quizzes)): ?>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <?php foreach ($assigned_quizzes as $chapter_name => $questions): ?>
+                            <div class="p-4 rounded-xl border-2 border-emerald-100 bg-emerald-50/40 flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chapter_name) ?></h3>
+                                    <p class="text-xs text-slate-500 mt-1"><?= count($questions) ?> question<?= count($questions) === 1 ? '' : 's' ?></p>
+                                </div>
+                                <button type="button" onclick="startAssignedQuiz(<?= htmlspecialchars(json_encode($chapter_name), ENT_QUOTES, 'UTF-8') ?>)" class="shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition">
+                                    Start Quiz
+                                </button>
                             </div>
-                            <button onclick='startQuiz(<?= json_encode($s_quiz) ?>)' class="mt-5 w-full bg-blue-50 hover:bg-pastel-primary hover:text-white text-pastel-hover text-xs font-bold py-2.5 rounded-xl transition text-center border border-blue-100">
-                                Start Section Quiz →
-                            </button>
                         <?php endforeach; ?>
-                    <?php endif; ?>
+                    </div>
+                <?php else: ?>
+                    <div class="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+                        No quizzes have been assigned yet.
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Chapter Navigation Selector -->
+            <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
+                <h3 class="text-sm font-bold text-pastel-text mb-3">Select Chapter Module:</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <?php foreach ($chapters as $id => $chap): ?>
+                        <a href="quiz.php?chapter=<?= $id ?>" class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
+                            <div>
+                                <span class="text-xs font-bold text-pastel-primary">Chapter <?= $id ?></span>
+                                <h4 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chap['title']) ?></h4>
+                            </div>
+                            <span class="text-xs font-semibold text-slate-400"><?= $id === $selected_chap_id ? 'Active 📍' : 'Select →' ?></span>
+                        </a>
+                    <?php endforeach; ?>
                 </div>
             </div>
 
-            <!-- RIGHT SIDE: Sub-tab Navigation for Notes & Lessons (8 Columns) -->
-            <div class="lg:col-span-8 bg-pastel-card p-6 sm:p-8 rounded-2xl border border-blue-100 shadow-sm">
-                
-                <!-- Sub-tab Navigation (Notes vs Lessons) -->
-                <div class="flex border-b border-slate-100 mb-6 gap-6">
-                    <button onclick="switchTab('notes')" id="tab-btn-notes" class="pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition">
-                        📖 Notes
-                    </button>
-                    <button onclick="switchTab('lessons')" id="tab-btn-lessons" class="pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition">
-                        ✏️ Lessons & Questions
-                    </button>
+        </div>
+
+        <!-- ACTIVE QUIZ ENGINE VIEW (Hidden by default) -->
+        <div id="quiz-runner" class="hidden bg-pastel-card p-8 rounded-2xl shadow-sm border border-blue-100">
+            <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-100">
+                <div>
+                    <span id="quiz-title-display" class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Quiz</span>
+                    <h3 id="quiz-subtitle-display" class="text-lg font-bold text-pastel-text"></h3>
                 </div>
-
-                <!-- Active Subtopic Title -->
-                <h2 id="active-title" class="text-xl font-bold text-pastel-text mb-4">--</h2>
-
-                <!-- TAB CONTENT 1: NOTES VIEW -->
-                <div id="view-notes" class="space-y-6">
-                    <div>
-                        <h2 class="text-lg font-bold text-pastel-text">2. Overall Chapter Quiz</h2>
-<<<<<<<<< Temporary merge branch 1
-                        <p class="text-xs text-slate-500">Comprehensive test combining all concepts from Chapter <?= $selected_chap_id ?>.</p>
-=========
-                        <p class="text-xs text-slate-500">Comprehensive test combining all concepts from Chapter 4.</p>
->>>>>>>>> Temporary merge branch 2
-                    </div>
-
-                    <div>
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Key Steps</h3>
-                        <ul id="note-points" class="list-disc list-inside text-sm text-slate-600 space-y-1.5"></ul>
-                    </div>
-
-                    <div>
-                        <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Chapter Final Test</span>
-<<<<<<<<< Temporary merge branch 1
-                        <h3 class="text-xl font-bold text-pastel-text mt-0.5"><?= htmlspecialchars($overall_chapter_quiz['title']) ?></h3>
-                        <p class="text-xs text-slate-600 mt-1"><?= htmlspecialchars($overall_chapter_quiz['desc']) ?></p>
-=========
-                        <h3 class="text-xl font-bold text-pastel-text mt-0.5"><?= $overall_chapter_quiz['title'] ?></h3>
-                        <p class="text-xs text-slate-600 mt-1"><?= $overall_chapter_quiz['desc'] ?></p>
->>>>>>>>> Temporary merge branch 2
-                    </div>
-                    <button onclick='startQuiz(<?= json_encode($overall_chapter_quiz) ?>)' class="w-full sm:w-auto px-6 py-3 bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-bold rounded-xl shadow-sm transition whitespace-nowrap">
-                        Take Overall Quiz 🏆
-                    </button>
+                <div class="text-right">
+                    <span class="text-xs text-slate-400 block">Progress</span>
+                    <span id="quiz-progress" class="text-sm font-bold text-pastel-primary">1 / 3</span>
                 </div>
             </div>
 
-                <!-- TAB CONTENT 2: LESSONS & QUESTIONS VIEW -->
-                <div id="view-lessons" class="hidden space-y-4">
-                    <p class="text-sm text-slate-500 mb-2">Click on any lesson question below to jump directly into practice mode:</p>
-                    <div id="questions-list" class="space-y-3">
-                        <!-- Questions injected dynamically -->
-                    </div>
-                </div>
+            <!-- Question Box -->
+            <div class="mb-6">
+                <h4 id="question-text" class="text-base font-semibold text-slate-800 mb-4"></h4>
+                <div id="options-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+            </div>
 
+            <!-- AI Feedback Display Container -->
+            <div id="ai-feedback-container" class="hidden mb-6 p-4 rounded-xl bg-blue-50/70 border border-blue-200">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-base">💡</span>
+                    <h5 class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Explanations & Feedback</h5>
+                </div>
+                <p id="ai-feedback-text" class="text-sm text-slate-700 leading-relaxed"></p>
+                <button id="next-question-btn" onclick="proceedToNextQuestion()" class="mt-4 px-4 py-2 bg-pastel-primary text-white text-xs font-bold rounded-xl hover:bg-pastel-hover transition hidden">
+                    Next Question →
+                </button>
+            </div>
+
+            <div class="flex justify-between items-center pt-4 border-t border-slate-100">
+                <button onclick="exitQuiz()" class="text-xs font-semibold text-slate-400 hover:text-rose-500 transition">
+                    ✕ Cancel & Exit
+                </button>
+            </div>
+        </div>
+
+        <!-- QUIZ RESULTS VIEW (Hidden by default) -->
+        <div id="quiz-result" class="hidden bg-pastel-card p-8 rounded-2xl shadow-sm border border-blue-100 text-center">
+            <div class="w-16 h-16 bg-blue-50 text-pastel-primary rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
+                🎯
+            </div>
+            <h2 class="text-2xl font-bold text-pastel-text mb-1">AI Quiz Completed!</h2>
+            <p id="result-quiz-name" class="text-sm text-slate-500 mb-4"></p>
+
+            <div class="bg-pastel-bg p-6 rounded-2xl border border-blue-50 max-w-xs mx-auto mb-6">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Your Score</span>
+                <span id="result-score" class="text-3xl font-extrabold text-pastel-primary">0 / 0</span>
             </div>
 
             <div class="flex justify-center gap-3">
                 <button onclick="exitQuiz()" class="px-6 py-2.5 bg-pastel-primary text-white text-xs font-bold rounded-xl hover:bg-pastel-hover transition">
-                    Back to Quiz List
+                    Back to Quiz Menu
                 </button>
-<<<<<<<<< Temporary merge branch 1
                 <a href="module.php?chap=<?= $selected_chap_id ?>" class="px-6 py-2.5 bg-white border border-blue-200 text-pastel-text text-xs font-bold rounded-xl hover:bg-slate-50 transition">
-=========
-                <a href="module.php" class="px-6 py-2.5 bg-white border border-blue-200 text-pastel-text text-xs font-bold rounded-xl hover:bg-slate-50 transition">
->>>>>>>>> Temporary merge branch 2
                     Review Module Notes
                 </a>
             </div>
@@ -406,104 +297,179 @@ $overall_chapter_quiz = [
 
     </main>
 
-    <!-- JS State Management -->
-    <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js"></script>
+    <!-- Interactive Quiz Engine & AI Integration Script -->
     <script>
-        const subtopicData = <?= json_encode($active_chapter['subtopics'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-        let selectedKey = "<?= $first_subtopic_key ?>";
-        let activeTab = 'notes';
+        let currentQuiz = null;
+        let activeQIndex = 0;
+        let score = 0;
+        let isEvaluating = false;
+        const assignedQuizzes = <?= json_encode($assigned_quizzes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
-        function selectSubtopic(key) {
-            selectedKey = key;
+        function startAssignedQuiz(chapterName) {
+            const questions = (assignedQuizzes[chapterName] || []).map((question) => ({
+                q: question.question,
+                options: [question.option_a, question.option_b, question.option_c, question.option_d],
+                ans: ['A', 'B', 'C', 'D'].indexOf(question.correct_option.toUpperCase())
+            }));
 
-            // Highlight subtopic button
-            document.querySelectorAll('.subtopic-btn').forEach(btn => {
-                btn.classList.remove('border-pastel-primary', 'bg-blue-50/70', 'shadow-sm');
-                btn.classList.add('border-slate-100');
+            if (questions.length === 0) {
+                alert('This assigned quiz has no questions yet.');
+                return;
+            }
+
+            document.getElementById('quiz-menu').classList.add('hidden');
+            document.getElementById('quiz-result').classList.add('hidden');
+            document.getElementById('quiz-runner').classList.remove('hidden');
+            startQuizEngine({
+                title: 'Teacher Quiz: ' + chapterName,
+                questions: questions
             });
-            const formattedId = `subtopic-btn-${key.replace('.', '_')}`;
-            const activeBtn = document.getElementById(formattedId);
-            if (activeBtn) {
-                activeBtn.classList.remove('border-slate-100');
-                activeBtn.classList.add('border-pastel-primary', 'bg-blue-50/70', 'shadow-sm');
-            }
-
-            renderContent();
         }
 
-        function switchTab(tab) {
-            activeTab = tab;
+        async function fetchAIQuiz(topicName) {
+            document.getElementById('quiz-menu').classList.add('hidden');
+            document.getElementById('quiz-result').classList.add('hidden');
+            document.getElementById('quiz-runner').classList.remove('hidden');
 
-            const notesBtn = document.getElementById('tab-btn-notes');
-            const lessonsBtn = document.getElementById('tab-btn-lessons');
+            document.getElementById('quiz-title-display').innerText = "Gemini AI Generator";
+            document.getElementById('quiz-subtitle-display').innerText = "Topic: " + topicName;
+            document.getElementById('question-text').innerText = "⏳ Generating custom AI quiz questions, please wait...";
+            document.getElementById('options-container').innerHTML = '';
+            document.getElementById('ai-feedback-container').classList.add('hidden');
 
-            if (tab === 'notes') {
-                notesBtn.className = "pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition";
-                lessonsBtn.className = "pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition";
-                document.getElementById('view-notes').classList.remove('hidden');
-                document.getElementById('view-lessons').classList.add('hidden');
-            } else {
-                lessonsBtn.className = "pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition";
-                notesBtn.className = "pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition";
-                document.getElementById('view-lessons').classList.remove('hidden');
-                document.getElementById('view-notes').classList.add('hidden');
-            }
-        }
-
-        function renderContent() {
-            if (!subtopicData || !subtopicData[selectedKey]) return;
-
-            const data = subtopicData[selectedKey];
-
-            document.getElementById('active-title').innerText = data.title;
-
-            // Render Notes
-            document.getElementById('note-overview').innerText = data.notes.overview;
-            
-            const pointsList = document.getElementById('note-points');
-            pointsList.innerHTML = '';
-            if (Array.isArray(data.notes.points)) {
-                data.notes.points.forEach(point => {
-                    const li = document.createElement('li');
-                    li.innerHTML = point;
-                    pointsList.appendChild(li);
+            try {
+                const response = await fetch('generate_ai_quiz.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topic: topicName })
                 });
-            }
+                
+                const result = await response.json();
+                
+                if (!result.candidates || !result.candidates[0].content) {
+                    throw new Error("Invalid response format from server.");
+                }
 
-            document.getElementById('note-example').innerHTML = data.notes.example;
+                const rawJsonText = result.candidates[0].content.parts[0].text;
+                const quizPayload = JSON.parse(rawJsonText);
+                
+                if (!quizPayload.questions || quizPayload.questions.length === 0) {
+                    throw new Error("No questions returned in JSON payload.");
+                }
 
-            // Render Questions
-            const questionsList = document.getElementById('questions-list');
-            questionsList.innerHTML = '';
-            if (Array.isArray(data.questions) && data.questions.length > 0) {
-                data.questions.forEach(q => {
-                    const qAnchor = document.createElement('a');
-                    qAnchor.className = "block p-4 rounded-xl border border-blue-50 bg-pastel-bg hover:border-pastel-primary transition";
-                    qAnchor.href = `quiz.php?q=${q.id}`;
-                    qAnchor.innerHTML = `
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-xs font-bold text-pastel-primary">${q.diff || ''}</span>
-                        </div>
-                        <p class="font-semibold text-sm text-pastel-text">${q.title}</p>
-                    `;
-                    questionsList.appendChild(qAnchor);
+                startQuizEngine({
+                    title: "AI Quiz: " + topicName,
+                    questions: quizPayload.questions
                 });
-            } else {
-                questionsList.innerHTML = '<p class="text-sm text-slate-400">No questions available for this subtopic.</p>';
-            }
-
-            // Trigger MathJax re-render if loaded
-            if (window.MathJax) {
-                MathJax.typeset();
+                
+            } catch (error) {
+                console.error("Failed to generate AI quiz:", error);
+                alert("Could not generate AI quiz. Please check your API key and network connection.");
+                exitQuiz();
             }
         }
 
-        // Initial render on load
-        renderContent();
+        function startQuizEngine(quizData) {
+            currentQuiz = quizData;
+            activeQIndex = 0;
+            score = 0;
+            isEvaluating = false;
+
+            document.getElementById('quiz-title-display').innerText = "Active AI Quiz";
+            document.getElementById('quiz-subtitle-display').innerText = currentQuiz.title;
+
+            renderQuestion();
+        }
+
+        function renderQuestion() {
+            isEvaluating = false;
+            const qData = currentQuiz.questions[activeQIndex];
+            document.getElementById('quiz-progress').innerText = `${activeQIndex + 1} / ${currentQuiz.questions.length}`;
+            document.getElementById('question-text').innerText = qData.q;
+
+            // Hide previous feedback box & clear text
+            document.getElementById('ai-feedback-container').classList.add('hidden');
+            document.getElementById('ai-feedback-text').innerText = '';
+            document.getElementById('next-question-btn').classList.add('hidden');
+
+            const optsDiv = document.getElementById('options-container');
+            optsDiv.innerHTML = '';
+            optsDiv.classList.remove('pointer-events-none', 'opacity-50');
+
+            qData.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "p-4 text-left border-2 border-slate-100 rounded-xl hover:border-pastel-primary hover:bg-blue-50/50 text-sm font-medium transition duration-200";
+                btn.innerText = opt;
+                btn.onclick = () => handleOptionSelection(idx, qData);
+                optsDiv.appendChild(btn);
+            });
+        }
+
+        async function handleOptionSelection(selectedIndex, qData) {
+            if (isEvaluating) return;
+            isEvaluating = true;
+
+            const selectedAnswerText = qData.options[selectedIndex];
+            const isCorrect = selectedIndex === qData.ans;
+            if (isCorrect) score++;
+
+            // Lock options to prevent double-clicking
+            const optsDiv = document.getElementById('options-container');
+            optsDiv.classList.add('pointer-events-none', 'opacity-50');
+
+            // Show loading placeholder in AI feedback container
+            const feedbackContainer = document.getElementById('ai-feedback-container');
+            const feedbackText = document.getElementById('ai-feedback-text');
+            feedbackContainer.classList.remove('hidden');
+            feedbackText.innerText = 'Evaluating answer with AI...';
+
+            try {
+                const aiText = await submitAnswerToAI(qData.q, selectedAnswerText);
+                feedbackText.innerText = aiText;
+            } catch (error) {
+                feedbackText.innerText = isCorrect 
+                    ? 'Correct! (Note: Could not fetch advanced AI feedback at the moment.)' 
+                    : 'Incorrect. (Note: Could not fetch advanced AI feedback at the moment.)';
+            }
+
+            // Show next action button
+            document.getElementById('next-question-btn').classList.remove('hidden');
+        }
+
+        async function submitAnswerToAI(questionText, studentAnswer) {
+            const response = await fetch('evaluate_quiz.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: questionText, answer: studentAnswer })
+            });
+            const result = await response.json();
+            const aiText = result.candidates[0].content.parts[0].text;
+            return aiText;
+        }
+
+        function proceedToNextQuestion() {
+            if (activeQIndex + 1 < currentQuiz.questions.length) {
+                activeQIndex++;
+                renderQuestion();
+            } else {
+                showResults();
+            }
+        }
+
+        function showResults() {
+            document.getElementById('quiz-runner').classList.add('hidden');
+            document.getElementById('quiz-result').classList.remove('hidden');
+
+            document.getElementById('result-quiz-name').innerText = currentQuiz.title;
+            document.getElementById('result-score').innerText = `${score} / ${currentQuiz.questions.length}`;
+        }
+
+        function exitQuiz() {
+            document.getElementById('quiz-runner').classList.add('hidden');
+            document.getElementById('quiz-result').classList.add('hidden');
+            document.getElementById('quiz-menu').classList.remove('hidden');
+        }
     </script>
-<<<<<<<<< Temporary merge branch 1
     <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js"></script>
-=========
->>>>>>>>> Temporary merge branch 2
 </body>
 </html>
