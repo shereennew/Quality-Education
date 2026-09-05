@@ -1,171 +1,94 @@
 <?php
-$student_name = "Alex Tan";
-$active_tab = $_GET['page'] ?? 'module';
-
-// Nav Bar Items (Identical to student_dashboard.php)
-$nav_items = [
-    'home'        => ['label' => 'Home',        'url' => 'student_dashboard.php'],
-    'module'      => ['label' => 'Modules',     'url' => 'module.php'],
-    'quiz'        => ['label' => 'Quizzes',     'url' => 'quiz.php'],
-    'math_helper' => ['label' => 'Math Helper', 'url' => 'math_helper.php']
+// Mock student data for UI prototyping
+$student = [
+    'name' => 'Aina',
+    'level' => 4,
+    'xp' => 320
 ];
 
-// All available chapters data structure
+// Mock database / chapter content for UI prototyping
 $chapters = [
-    3 => [
-        'title' => 'Chapter 3: Fraction Mountain',
-        'topic' => 'Equivalent Fractions & Simplifying',
+    1 => [
+        'title' => 'Whole Numbers & Basic Arithmetic',
+        'topic' => 'Operations up to 1,000,000',
         'subtopics' => [
-            '3.1' => [
-                'title' => '3.1 Equivalent Fractions',
-                'status' => 'Completed',
+            '1.1' => [
+                'title' => 'Place Value and Value of Digits',
                 'badge_color' => 'bg-emerald-100 text-emerald-700',
+                'status' => 'Completed',
                 'notes' => [
-                    'overview' => 'Fractions that have different numerators and denominators but equal value.',
+                    'overview' => 'Understanding the position of a digit in a number determines its value (e.g., thousands, ten thousands).',
                     'points' => [
-                        'Multiply or divide top and bottom by the same non-zero number.',
-                        'The value of the fraction remains unchanged.'
+                        'Identify the position from right to left: Ones, Tens, Hundreds, Thousands.',
+                        'Digit value = Digit $\times$ Place value.',
+                        'Write numbers in word form and numeric form accurately.'
                     ],
-                    'example' => '$$\frac{1}{2} = \frac{2}{4} = \frac{4}{8}$$'
+                    'example' => 'What is the value of <b>7</b> in 4<b>7</b>2,150? <br><span class="text-pastel-primary font-bold">Answer: 70,000</span>'
                 ],
                 'questions' => [
-                    ['id' => 301, 'title' => 'Q1: Find equivalent fraction for 3/4 with denominator 8', 'diff' => 'Foundation'],
-                    ['id' => 302, 'title' => 'Q2: Are 2/5 and 6/15 equivalent?', 'diff' => 'Intermediate']
+                    ['id' => 101, 'diff' => 'Easy', 'title' => 'Identify the place value of 5 in 352,410'],
+                    ['id' => 102, 'diff' => 'Medium', 'title' => 'Compare numbers up to six digits using symbols']
                 ]
             ],
-            '3.2' => [
-                'title' => '3.2 Simplifying Fractions',
-                'status' => 'Completed',
-                'badge_color' => 'bg-emerald-100 text-emerald-700',
-                'notes' => [
-                    'overview' => 'Divide both numerator and denominator by their Highest Common Factor (HCF).',
-                    'points' => [
-                        'Find the largest number that divides both numbers evenly.',
-                        'A fraction is in simplest form when HCF is 1.'
-                    ],
-                    'example' => '$$\frac{6}{12} = \frac{6 \div 6}{12 \div 6} = \frac{1}{2}$$'
-                ],
-                'questions' => [
-                    ['id' => 303, 'title' => 'Q1: Simplify 8/12', 'diff' => 'Foundation'],
-                    ['id' => 304, 'title' => 'Q2: Simplify 15/45 to lowest terms', 'diff' => 'Intermediate']
-                ]
-            ]
-        ]
-    ],
-    4 => [
-        'title' => 'Chapter 4: Waterfall Forest',
-        'topic' => 'Adding & Subtracting Unlike Fractions',
-        'subtopics' => [
-            '4.1' => [
-                'title' => '4.1 Finding Common Denominators',
-                'status' => 'Completed',
-                'badge_color' => 'bg-emerald-100 text-emerald-700',
-                'notes' => [
-                    'overview' => 'Before adding or subtracting unlike fractions, find a common denominator using Least Common Multiples (LCM).',
-                    'points' => [
-                        'List multiples for both denominators until you find a match.',
-                        'Multiply both top and bottom by the same factor.'
-                    ],
-                    'example' => '$$\frac{1}{2} = \frac{1 \times 3}{2 \times 3} = \frac{3}{6}$$'
-                ],
-                'questions' => [
-                    ['id' => 401, 'title' => 'Q1: Find LCM of 3 and 4', 'diff' => 'Foundation'],
-                    ['id' => 402, 'title' => 'Q2: Convert 2/3 to denominator 12', 'diff' => 'Intermediate']
-                ]
-            ],
-            '4.2' => [
-                'title' => '4.2 Adding Unlike Fractions',
-                'status' => 'In Progress',
+            '1.2' => [
+                'title' => 'Addition and Subtraction Operations',
                 'badge_color' => 'bg-blue-100 text-blue-700',
+                'status' => 'In Progress',
                 'notes' => [
-                    'overview' => 'Convert denominators to be identical, add only the numerators, and simplify the fraction.',
+                    'overview' => 'Adding and subtracting large numbers by aligning digits according to their place values.',
                     'points' => [
-                        'Keep the common denominator the same.',
-                        'Add top numbers together: $a/c + b/c = (a+b)/c$.'
+                        'Always align numbers vertically by place value before calculating.',
+                        'Carry over numbers carefully during addition.',
+                        'Borrow correctly from neighboring columns during subtraction.'
                     ],
-                    'example' => '$$\frac{1}{3} + \frac{1}{6} = \frac{2}{6} + \frac{1}{6} = \frac{3}{6} = \frac{1}{2}$$'
+                    'example' => 'Calculate: $45,210 + 12,345$ <br><span class="text-pastel-primary font-bold">Answer: 57,555</span>'
                 ],
                 'questions' => [
-                    ['id' => 403, 'title' => 'Q1: Solve 1/4 + 1/2', 'diff' => 'Foundation'],
-                    ['id' => 404, 'title' => 'Q2: Solve 2/5 + 1/3', 'diff' => 'Intermediate'],
-                    ['id' => 405, 'title' => 'Q3: Solve 3/8 + 1/4 and simplify', 'diff' => 'Master']
-                ]
-            ],
-            '4.3' => [
-                'title' => '4.3 Subtracting Unlike Fractions',
-                'status' => 'Locked',
-                'badge_color' => 'bg-slate-100 text-slate-500',
-                'notes' => [
-                    'overview' => 'Equalize denominators first, then subtract the numerators.',
-                    'points' => [
-                        'Subtract top numbers only.',
-                        'Simplify the resulting fraction if needed.'
-                    ],
-                    'example' => '$$\frac{3}{4} - \frac{1}{2} = \frac{3}{4} - \frac{2}{4} = \frac{1}{4}$$'
-                ],
-                'questions' => [
-                    ['id' => 406, 'title' => 'Q1: Solve 3/4 - 1/4', 'diff' => 'Foundation'],
-                    ['id' => 407, 'title' => 'Q2: Solve 5/6 - 1/3', 'diff' => 'Intermediate']
+                    ['id' => 103, 'diff' => 'Easy', 'title' => 'Solve 5-digit addition with regrouping'],
+                    ['id' => 104, 'diff' => 'Hard', 'title' => 'Word problem involving mixed addition and subtraction']
                 ]
             ]
         ]
     ],
-    5 => [
-        'title' => 'Chapter 5: Mixed Number Valley',
-        'topic' => 'Multiplying Fractions & Mixed Numbers',
+    2 => [
+        'title' => 'Fractions, Decimals & Percentages',
+        'topic' => 'Conversion and Calculations',
         'subtopics' => [
-            '5.1' => [
-                'title' => '5.1 Converting Improper Fractions',
+            '2.1' => [
+                'title' => 'Equivalent Fractions',
+                'badge_color' => 'bg-amber-100 text-amber-700',
                 'status' => 'Locked',
-                'badge_color' => 'bg-slate-100 text-slate-500',
                 'notes' => [
-                    'overview' => 'Convert mixed numbers into improper fractions before multiplying.',
+                    'overview' => 'Fractions that represent the same proportion of the whole even though their numerators and denominators differ.',
                     'points' => [
-                        'Multiply whole number by denominator.',
-                        'Add numerator to the result.'
+                        'Multiply or divide numerator and denominator by the same non-zero number.',
+                        'Simplify fractions to their lowest terms.'
                     ],
-                    'example' => '$$2 \frac{1}{3} = \frac{(2 \times 3) + 1}{3} = \frac{7}{3}$$'
+                    'example' => 'Find an equivalent fraction for $\frac{2}{3}$ with denominator $6$. <br><span class="text-pastel-primary font-bold">Answer: $\frac{4}{6}$</span>'
                 ],
                 'questions' => [
-                    ['id' => 501, 'title' => 'Q1: Convert 1 3/4 to improper fraction', 'diff' => 'Foundation'],
-                    ['id' => 502, 'title' => 'Q2: Convert 3 2/5 to improper fraction', 'diff' => 'Intermediate']
-                ]
-            ],
-            '5.2' => [
-                'title' => '5.2 Multiplying Fractions',
-                'status' => 'Locked',
-                'badge_color' => 'bg-slate-100 text-slate-500',
-                'notes' => [
-                    'overview' => 'Multiply top numbers together and bottom numbers together.',
-                    'points' => [
-                        'Numerator x Numerator = New Numerator.',
-                        'Denominator x Denominator = New Denominator.'
-                    ],
-                    'example' => '$$\frac{2}{3} \times \frac{4}{5} = \frac{8}{15}$$'
-                ],
-                'questions' => [
-                    ['id' => 503, 'title' => 'Q1: Solve 1/2 x 3/5', 'diff' => 'Foundation'],
-                    ['id' => 504, 'title' => 'Q2: Solve 2/3 x 9/10', 'diff' => 'Intermediate']
+                    ['id' => 201, 'diff' => 'Easy', 'title' => 'Simplify fractions to lowest terms']
                 ]
             ]
         ]
     ]
 ];
 
-// Set selected chapter (defaults to Chapter 4)
-$selected_chap_id = isset($_GET['chap']) && isset($chapters[(int)$_GET['chap']]) ? (int)$_GET['chap'] : 4;
+// Handle chapter selection from URL query parameters safely
+$selected_chap_id = isset($_GET['chap']) && isset($chapters[$_GET['chap']]) ? (int)$_GET['chap'] : 1;
 $active_chapter = $chapters[$selected_chap_id];
-$first_subtopic_key = array_key_first($active_chapter['subtopics']);
+
+// Get the first subtopic key dynamically
+$subtopic_keys = array_keys($active_chapter['subtopics']);
+$first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Module View - <?= htmlspecialchars($student_name) ?></title>
+    <title>Eduhunt - Modules</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- MathJax for rendering equations correctly -->
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
     <script>
         tailwind.config = {
             theme: {
@@ -185,58 +108,99 @@ $first_subtopic_key = array_key_first($active_chapter['subtopics']);
             }
         }
     </script>
+    <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.css" rel="stylesheet" />
 </head>
-<body class="bg-pastel-bg text-pastel-text font-sans min-h-screen flex flex-col">
+<body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center justify-center p-6 pt-32">
 
-    <!-- Top Navigation Bar (Matches Dashboard 1:1) -->
-    <nav class="bg-pastel-nav shadow-sm border-b border-blue-100 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                
-                <!-- Leftmost: Student Avatar & Name -->
-                <div class="flex items-center space-x-3 pr-4 border-r border-blue-200">
-                    <div class="w-9 h-9 rounded-full bg-pastel-primary text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                        <?= strtoupper(substr($student_name, 0, 1)) ?>
-                    </div>
-                    <span class="font-semibold text-pastel-text text-base whitespace-nowrap">
-                        <?= htmlspecialchars($student_name) ?>
-                    </span>
+    <!-- EXACT NAV BAR FROM INDEX -->
+    <nav class="bg-pastel-nav fixed w-full h-24 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
+        <div class="w-full max-w-[90rem] mx-auto px-10 flex items-center justify-between">
+            
+            <!-- LEFT: LOGO -->
+            <a href="index.php" class="flex items-center gap-4 flex-shrink-0">
+                <div class="bg-pastel-badge w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm">
+                    <span class="text-3xl">📖</span>
                 </div>
+                <span class="text-3xl font-black tracking-wide text-pastel-text hidden lg:block">
+                    Eduhunt
+                </span>
+            </a>
 
-                <!-- Center Navigation Items (Text Only) -->
-                <div class="flex space-x-2">
-                    <?php foreach ($nav_items as $key => $item): ?>
-                        <a href="<?= $item['url'] ?>" 
-                           class="px-4 py-2 rounded-lg text-sm font-semibold transition <?= $key === $active_tab ? 'bg-pastel-primary text-white shadow-sm' : 'text-pastel-text hover:bg-white/60' ?>">
-                            <?= $item['label'] ?>
+            <!-- CENTER: LARGE NAVIGATION -->
+            <div class="hidden md:flex items-center justify-center flex-1 mx-8">
+                <ul class="flex items-center gap-3 text-2xl font-bold">
+                    <!-- HOME -->
+                    <li>
+                        <a href="index.php" class="flex items-center px-6 py-4 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
+                            <span>Home</span>
                         </a>
-                    <?php endforeach; ?>
-                </div>
-
-                <!-- Right: Utility Tools & Grade Tag (Text Only) -->
-                <div class="flex items-center space-x-3">
-                    
-                    <!-- Read-Aloud Tool Button -->
-                    <button type="button" 
-                            title="Read Aloud"
-                            class="px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white text-slate-600 hover:text-pastel-hover text-xs border border-blue-100 transition shadow-sm font-medium">
-                        Read Aloud
-                    </button>
-
-                    <!-- Digital Scratchpad Tool Button -->
-                    <button type="button" 
-                            title="Scratchpad"
-                            class="px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white text-slate-600 hover:text-pastel-hover text-xs border border-blue-100 transition shadow-sm font-medium">
-                        Scratchpad
-                    </button>
-
-                    <!-- Grade Tag -->
-                    <span class="text-xs bg-pastel-badge text-pastel-hover font-semibold px-3 py-1.5 rounded-full whitespace-nowrap">
-                        Year 4 Math
-                    </span>
-                </div>
-
+                    </li>
+                    <!-- DISCUSSION -->
+                    <li>
+                        <a href="discussion.php" class="flex items-center px-6 py-4 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
+                            <span>Discussion</span>
+                        </a>
+                    </li>
+                    <!-- MODULES (Active) -->
+                    <li>
+                        <a href="module.php" class="flex items-center px-7 py-4 rounded-2xl bg-pastel-primary text-white shadow-md transition-all duration-200 hover:bg-pastel-hover hover:-translate-y-0.5">
+                            <span>Modules</span>
+                        </a>
+                    </li>
+                    <!-- QUIZZES -->
+                    <li>
+                        <a href="quiz.php" class="flex items-center px-6 py-4 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
+                            <span>Quizzes</span>
+                        </a>
+                    </li>
+                </ul>
             </div>
+
+            <!-- RIGHT: PROFILE -->
+            <div class="flex items-center flex-shrink-0 relative">
+                <button type="button" class="flex items-center gap-3 py-3 px-5 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm hover:border-pastel-primary/50 hover:shadow-md transition-all duration-200" id="user-menu-button" aria-expanded="false" data-dropdown-toggle="user-dropdown" data-dropdown-placement="bottom">
+                    <div class="w-12 h-12 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-xl">
+                        <?= strtoupper(substr($student['name'], 0, 1)) ?>
+                    </div>
+                    <span class="text-xl font-bold text-pastel-text hidden sm:block">
+                        <?= $student['name'] ?>
+                    </span>
+                    <svg class="w-5 h-5 text-pastel-primary" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m19 9-7 7-7-7" />
+                    </svg>
+                </button>
+
+                <!-- PROFILE DROPDOWN -->
+                <div class="z-50 hidden bg-pastel-card border-2 border-pastel-nav rounded-2xl shadow-xl w-60 mt-2" id="user-dropdown">
+                    <div class="px-5 py-4 border-b-2 border-pastel-nav">
+                        <span class="block text-lg font-bold text-pastel-text"><?= $student['name'] ?></span>
+                        <span class="block text-sm text-pastel-primary font-semibold mt-1">Level <?= $student['level'] ?></span>
+                    </div>
+                    <ul class="p-2 text-lg text-pastel-text font-medium" aria-labelledby="user-menu-button">
+                        <li><a href="#" class="block w-full px-4 py-3 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Profile</a></li>
+                        <li><a href="#" class="block w-full px-4 py-3 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Settings</a></li>
+                        <li><a href="#" class="block w-full px-4 py-3 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Sign out</a></li>
+                    </ul>
+                </div>
+
+                <!-- MOBILE MENU BUTTON -->
+                <button data-collapse-toggle="navbar-user" type="button" class="inline-flex items-center p-3 ml-3 w-14 h-14 justify-center text-pastel-primary rounded-2xl bg-pastel-card border-2 border-pastel-primary/20 md:hidden hover:bg-pastel-bg focus:outline-none focus:ring-2 focus:ring-pastel-primary/30" aria-controls="navbar-user" aria-expanded="false">
+                    <span class="sr-only">Open main menu</span>
+                    <svg class="w-8 h-8" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 7h14M5 12h14M5 17h14" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- MOBILE MENU -->
+        <div class="hidden w-full md:hidden px-5 pb-5 absolute top-24 left-0 bg-pastel-nav border-b-2 border-pastel-primary/20 shadow-lg" id="navbar-user">
+            <ul class="flex flex-col gap-2 text-lg font-bold bg-pastel-card p-4 rounded-2xl border-2 border-pastel-nav shadow-sm">
+                <li><a href="index.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Home</a></li>
+                <li><a href="discussion.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Discussion</a></li>
+                <li><a href="module.php" class="block py-4 px-5 text-white bg-pastel-primary rounded-xl shadow-sm">Modules</a></li>
+                <li><a href="quiz.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Quizzes</a></li>
+            </ul>
         </div>
     </nav>
 
@@ -330,6 +294,7 @@ $first_subtopic_key = array_key_first($active_chapter['subtopics']);
     </main>
 
     <!-- JS State Management -->
+    <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js"></script>
     <script>
         const subtopicData = <?= json_encode($active_chapter['subtopics']) ?>;
         let selectedKey = "<?= $first_subtopic_key ?>";
@@ -383,39 +348,37 @@ $first_subtopic_key = array_key_first($active_chapter['subtopics']);
             
             const pointsList = document.getElementById('note-points');
             pointsList.innerHTML = '';
-            data.notes.points.forEach(pt => {
+            data.notes.points.forEach(point => {
                 const li = document.createElement('li');
-                li.innerText = pt;
+                li.innerHTML = point;
                 pointsList.appendChild(li);
             });
 
             document.getElementById('note-example').innerHTML = data.notes.example;
 
-            // Render Lessons Questions
-            const qList = document.getElementById('questions-list');
-            qList.innerHTML = '';
+            // Render Questions
+            const questionsList = document.getElementById('questions-list');
+            questionsList.innerHTML = '';
             data.questions.forEach(q => {
-                const card = document.createElement('div');
-                card.className = "p-4 border border-slate-100 rounded-xl bg-pastel-bg flex justify-between items-center";
-                card.innerHTML = `
-                    <div>
-                        <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-pastel-hover">${q.diff}</span>
-                        <h4 class="font-semibold text-sm text-slate-700 mt-1">${q.title}</h4>
+                const qAnchor = document.createElement('a');
+                qAnchor.className = "block p-4 rounded-xl border border-blue-50 bg-pastel-bg hover:border-pastel-primary transition";
+                qAnchor.href = `quiz.php?q=${q.id}`;
+                qAnchor.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-bold text-pastel-primary">${q.diff}</span>
                     </div>
-                    <a href="quiz.php?q=${q.id}" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-4 py-2 rounded-lg transition shadow-sm">
-                        Jump to Question →
-                    </a>
+                    <p class="font-semibold text-sm text-pastel-text">${q.title}</p>
                 `;
-                qList.appendChild(card);
+                questionsList.appendChild(qAnchor);
             });
 
-            // Re-render LaTeX expressions with MathJax
-            if (window.MathJax && window.MathJax.typesetPromise) {
-                MathJax.typesetPromise();
+            // Trigger MathJax re-render if loaded
+            if (window.MathJax) {
+                MathJax.typeset();
             }
         }
 
-        // Initial Load
+        // Initial render on load
         renderContent();
     </script>
 </body>
