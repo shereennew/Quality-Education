@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../config/db.php';
+
 // Mock student data for UI prototyping
 $student = [
     'name' => 'Aina',
@@ -22,70 +24,24 @@ $chapters = [
 $selected_chap_id = isset($_GET['chapter']) && isset($chapters[$_GET['chapter']]) ? (int)$_GET['chapter'] : 1;
 $chapter_info = $chapters[$selected_chap_id];
 
-// Mock section quizzes and overall quiz based on chapter
-$section_quizzes = [
-    '1.1' => [
-        'title' => 'Place Value & Digit Values',
-        'desc' => 'Test your understanding of place values up to millions.',
-        'questions' => [
-            [
-                'q' => 'What is the value of 7 in 472,150?',
-                'options' => ['7,000', '70,000', '700,000', '700'],
-                'ans' => 1
-            ],
-            [
-                'q' => 'Which digit is in the ten-thousands place in 834,219?',
-                'options' => ['8', '3', '4', '2'],
-                'ans' => 1
-            ]
-        ]
-    ],
-    '1.2' => [
-        'title' => 'Addition & Subtraction',
-        'desc' => 'Practice aligning and calculating large number sums and differences.',
-        'questions' => [
-            [
-                'q' => 'Calculate: 45,210 + 12,345',
-                'options' => ['57,555', '56,555', '57,455', '58,555'],
-                'ans' => 0
-            ],
-            [
-                'q' => 'What is 80,000 - 34,200?',
-                'options' => ['46,800', '45,800', '45,700', '46,200'],
-                'ans' => 1
-            ]
-        ]
-    ]
-];
-
-$overall_chapter_quiz = [
-    'title' => 'Chapter ' . $selected_chap_id . ' Comprehensive Exam',
-    'desc' => 'Full assessment covering all core concepts in this module.',
-    'questions' => [
-        [
-            'q' => 'What is the value of 7 in 472,150?',
-            'options' => ['7,000', '70,000', '700,000', '700'],
-            'ans' => 1
-        ],
-        [
-            'q' => 'Calculate: 45,210 + 12,345',
-            'options' => ['57,555', '56,555', '57,455', '58,555'],
-            'ans' => 0
-        ],
-        [
-            'q' => 'Which digit is in the ten-thousands place in 834,219?',
-            'options' => ['8', '3', '4', '2'],
-            'ans' => 1
-        ]
-    ]
-];
+// Teacher-created chapter quizzes are available here as assigned quizzes.
+$assigned_quizzes = [];
+try {
+    $stmt_assigned = $pdo->query("SELECT * FROM chapter_quizzes ORDER BY chapter_name, id");
+    foreach ($stmt_assigned->fetchAll(PDO::FETCH_ASSOC) as $quiz) {
+        $assigned_quizzes[$quiz['chapter_name']][] = $quiz;
+    }
+} catch (PDOException $e) {
+    // Keep the practice quiz available if the database has not been initialized yet.
+    $assigned_quizzes = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eduhunt - Quizzes</title>
+    <title>EduHunt - Quizzes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -110,91 +66,34 @@ $overall_chapter_quiz = [
 </head>
 <body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center p-6 pt-32">
 
-    <!-- EXACT NAV BAR -->
-    <nav class="bg-pastel-nav fixed w-full h-24 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
-        <div class="w-full max-w-[90rem] mx-auto px-10 flex items-center justify-between">
-            
-            <!-- LEFT: LOGO -->
-            <a href="index.php" class="flex items-center gap-4 flex-shrink-0">
-                <div class="bg-pastel-badge w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm">
-                    <span class="text-3xl">📖</span>
+    <!-- EXACT NAV BAR MATCHING HISTORY.PHP -->
+    <nav class="bg-pastel-nav fixed w-full h-20 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
+        <div class="w-full max-w-[85rem] mx-auto px-8 flex items-center justify-between">
+            <a href="index.php" class="flex items-center gap-3 flex-shrink-0">
+                <div class="bg-pastel-badge w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm">
+                    <span class="text-2xl">📖</span>
                 </div>
-                <span class="text-3xl font-black tracking-wide text-pastel-text hidden lg:block">
-                    Eduhunt
-                </span>
+                <span class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block">Eduhunt</span>
             </a>
 
-            <!-- CENTER: LARGE NAVIGATION -->
-            <div class="hidden md:flex items-center justify-center flex-1 mx-8">
-                <ul class="flex items-center gap-3 text-2xl font-bold">
-                    <li>
-                        <a href="index.php" class="flex items-center px-6 py-4 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
-                            <span>Home</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="discussion.php" class="flex items-center px-6 py-4 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
-                            <span>Discussion</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="module.php" class="flex items-center px-6 py-4 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200">
-                            <span>Modules</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="quiz.php" class="flex items-center px-7 py-4 rounded-2xl bg-pastel-primary text-white shadow-md transition-all duration-200 hover:bg-pastel-hover hover:-translate-y-0.5">
-                            <span>Quizzes</span>
-                        </a>
-                    </li>
+            <div class="hidden md:flex items-center justify-center flex-1 mx-6">
+                <ul class="flex items-center gap-3 text-lg font-bold">
+                    <li><a href="index.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Home</a></li>
+                    <li><a href="discussion.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Discussion</a></li>
+                    <li><a href="module.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Modules</a></li>
+                    <li><a href="quiz.php" class="flex items-center px-6 py-3 rounded-2xl bg-pastel-primary text-white shadow-sm">Quizzes</a></li>
+                    <li><a href="history.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">History</a></li>
                 </ul>
             </div>
 
-            <!-- RIGHT: PROFILE -->
-            <div class="flex items-center flex-shrink-0 relative">
-                <button type="button" class="flex items-center gap-3 py-3 px-5 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm hover:border-pastel-primary/50 hover:shadow-md transition-all duration-200" id="user-menu-button" aria-expanded="false" data-dropdown-toggle="user-dropdown" data-dropdown-placement="bottom">
-                    <div class="w-12 h-12 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-xl">
+            <div class="flex items-center flex-shrink-0">
+                <button id="user-menu-button" data-dropdown-toggle="user-dropdown" type="button" class="flex items-center gap-3 py-2.5 px-4 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm">
+                    <div class="w-10 h-10 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-lg">
                         <?= strtoupper(substr($student['name'], 0, 1)) ?>
                     </div>
-                    <span class="text-xl font-bold text-pastel-text hidden sm:block">
-                        <?= $student['name'] ?>
-                    </span>
-                    <svg class="w-5 h-5 text-pastel-primary" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m19 9-7 7-7-7" />
-                    </svg>
-                </button>
-
-                <!-- PROFILE DROPDOWN -->
-                <div class="z-50 hidden bg-pastel-card border-2 border-pastel-nav rounded-2xl shadow-xl w-60 mt-2" id="user-dropdown">
-                    <div class="px-5 py-4 border-b-2 border-pastel-nav">
-                        <span class="block text-lg font-bold text-pastel-text"><?= $student['name'] ?></span>
-                        <span class="block text-sm text-pastel-primary font-semibold mt-1">Level <?= $student['level'] ?></span>
-                    </div>
-                    <ul class="p-2 text-lg text-pastel-text font-medium" aria-labelledby="user-menu-button">
-                        <li><a href="#" class="block w-full px-4 py-3 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Profile</a></li>
-                        <li><a href="#" class="block w-full px-4 py-3 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Settings</a></li>
-                        <li><a href="#" class="block w-full px-4 py-3 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Sign out</a></li>
-                    </ul>
-                </div>
-
-                <!-- MOBILE MENU BUTTON -->
-                <button data-collapse-toggle="navbar-user" type="button" class="inline-flex items-center p-3 ml-3 w-14 h-14 justify-center text-pastel-primary rounded-2xl bg-pastel-card border-2 border-pastel-primary/20 md:hidden hover:bg-pastel-bg focus:outline-none focus:ring-2 focus:ring-pastel-primary/30" aria-controls="navbar-user" aria-expanded="false">
-                    <span class="sr-only">Open main menu</span>
-                    <svg class="w-8 h-8" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 7h14M5 12h14M5 17h14" />
-                    </svg>
+                    <span class="text-lg font-bold text-pastel-text hidden sm:block"><?= htmlspecialchars($student['name']) ?></span>
                 </button>
             </div>
-        </div>
-
-        <!-- MOBILE MENU -->
-        <div class="hidden w-full md:hidden px-5 pb-5 absolute top-24 left-0 bg-pastel-nav border-b-2 border-pastel-primary/20 shadow-lg" id="navbar-user">
-            <ul class="flex flex-col gap-2 text-lg font-bold bg-pastel-card p-4 rounded-2xl border-2 border-pastel-nav shadow-sm">
-                <li><a href="index.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Home</a></li>
-                <li><a href="discussion.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Discussion</a></li>
-                <li><a href="module.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Modules</a></li>
-                <li><a href="quiz.php" class="block py-4 px-5 text-white bg-pastel-primary rounded-xl shadow-sm">Quizzes</a></li>
-            </ul>
         </div>
     </nav>
 
@@ -204,7 +103,7 @@ $overall_chapter_quiz = [
         <!-- Header Banner -->
         <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Quiz Center</span>
+                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Quiz Center</span>
                 <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_info['title']) ?></h1>
                 <p class="text-sm text-slate-500 mt-0.5"><?= htmlspecialchars($chapter_info['topic']) ?></p>
             </div>
@@ -214,53 +113,65 @@ $overall_chapter_quiz = [
         </div>
 
         <!-- QUIZ MENU SELECTION VIEW -->
-        <div id="quiz-menu" class="space-y-8">
+        <div id="quiz-menu" class="space-y-6">
             
-            <!-- SECTION 1: Subtopic / Section Practice Quizzes -->
-            <div>
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 class="text-lg font-bold text-pastel-text">1. Section Practice Quizzes</h2>
-                        <p class="text-xs text-slate-500">Practice targeted questions section by section.</p>
-                    </div>
-                    <span class="text-xs bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-md">Short & Focused</span>
+            <!-- AI Dynamic Generator Banner -->
+            <div class="bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 p-6 rounded-2xl border border-purple-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div>
+                    <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Powered by Gemini AI</span>
+                    <h2 class="text-xl font-bold text-pastel-text mt-0.5">Generate Dynamic Chapter Quiz ✨</h2>
+                    <p class="text-xs text-slate-600 mt-1">Instantly build custom multiple-choice questions tailored to this module using AI.</p>
                 </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <?php foreach ($section_quizzes as $code => $s_quiz): ?>
-                        <div class="bg-pastel-card p-5 rounded-2xl border border-blue-100 shadow-sm flex flex-col justify-between hover:border-pastel-primary transition">
-                            <div>
-                                <span class="text-xs font-bold text-pastel-primary">Section <?= $code ?></span>
-                                <h3 class="font-bold text-base text-pastel-text mt-1"><?= htmlspecialchars($s_quiz['title']) ?></h3>
-                                <p class="text-xs text-slate-500 mt-2 leading-relaxed"><?= htmlspecialchars($s_quiz['desc']) ?></p>
-                            </div>
-                            <button onclick='startQuiz(<?= json_encode($s_quiz) ?>)' class="mt-5 w-full bg-blue-50 hover:bg-pastel-primary hover:text-white text-pastel-hover text-xs font-bold py-2.5 rounded-xl transition text-center border border-blue-100">
-                                Start Section Quiz →
-                            </button>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
+                <button onclick="fetchAIQuiz('<?= htmlspecialchars($chapter_info['title'] . ' - ' . $chapter_info['topic']) ?>')" class="w-full sm:w-auto px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition whitespace-nowrap flex items-center justify-center gap-2">
+                    <span>Generate AI Quiz ⚡</span>
+                </button>
             </div>
 
-            <!-- SECTION 2: Overall Chapter Quiz -->
-            <div>
-                <div class="flex items-center justify-between mb-4">
+            <!-- TEACHER-ASSIGNED QUIZZES -->
+            <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
+                <div class="flex items-start justify-between gap-4 mb-4">
                     <div>
-                        <h2 class="text-lg font-bold text-pastel-text">2. Overall Chapter Quiz</h2>
-                        <p class="text-xs text-slate-500">Comprehensive test combining all concepts from Chapter <?= $selected_chap_id ?>.</p>
+                        <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">Teacher assigned</span>
+                        <h2 class="text-xl font-bold text-pastel-text mt-0.5">Complete Your Assigned Quizzes</h2>
+                        <p class="text-xs text-slate-600 mt-1">Choose a quiz prepared by your teacher to start answering the questions.</p>
                     </div>
-                    <span class="text-xs bg-purple-100 text-purple-700 font-bold px-2.5 py-1 rounded-md">Full Assessment</span>
+                    <span class="hidden sm:block text-2xl">📝</span>
                 </div>
 
-                <div class="bg-gradient-to-r from-blue-50 to-indigo-50/50 p-6 rounded-2xl border border-blue-200 flex flex-col sm:flex-row justify-between items-center gap-4 shadow-sm">
-                    <div>
-                        <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Chapter Final Test</span>
-                        <h3 class="text-xl font-bold text-pastel-text mt-0.5"><?= htmlspecialchars($overall_chapter_quiz['title']) ?></h3>
-                        <p class="text-xs text-slate-600 mt-1"><?= htmlspecialchars($overall_chapter_quiz['desc']) ?></p>
+                <?php if (!empty($assigned_quizzes)): ?>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <?php foreach ($assigned_quizzes as $chapter_name => $questions): ?>
+                            <div class="p-4 rounded-xl border-2 border-emerald-100 bg-emerald-50/40 flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chapter_name) ?></h3>
+                                    <p class="text-xs text-slate-500 mt-1"><?= count($questions) ?> question<?= count($questions) === 1 ? '' : 's' ?></p>
+                                </div>
+                                <button type="button" onclick="startAssignedQuiz(<?= htmlspecialchars(json_encode($chapter_name), ENT_QUOTES, 'UTF-8') ?>)" class="shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition">
+                                    Start Quiz
+                                </button>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
-                    <button onclick='startQuiz(<?= json_encode($overall_chapter_quiz) ?>)' class="w-full sm:w-auto px-6 py-3 bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-bold rounded-xl shadow-sm transition whitespace-nowrap">
-                        Take Overall Quiz 🏆
-                    </button>
+                <?php else: ?>
+                    <div class="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+                        No quizzes have been assigned yet.
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Chapter Navigation Selector -->
+            <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
+                <h3 class="text-sm font-bold text-pastel-text mb-3">Select Chapter Module:</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <?php foreach ($chapters as $id => $chap): ?>
+                        <a href="quiz.php?chapter=<?= $id ?>" class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
+                            <div>
+                                <span class="text-xs font-bold text-pastel-primary">Chapter <?= $id ?></span>
+                                <h4 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chap['title']) ?></h4>
+                            </div>
+                            <span class="text-xs font-semibold text-slate-400"><?= $id === $selected_chap_id ? 'Active 📍' : 'Select →' ?></span>
+                        </a>
+                    <?php endforeach; ?>
                 </div>
             </div>
 
@@ -270,7 +181,7 @@ $overall_chapter_quiz = [
         <div id="quiz-runner" class="hidden bg-pastel-card p-8 rounded-2xl shadow-sm border border-blue-100">
             <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-100">
                 <div>
-                    <span id="quiz-title-display" class="text-xs font-bold text-pastel-primary uppercase tracking-wider"></span>
+                    <span id="quiz-title-display" class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Quiz</span>
                     <h3 id="quiz-subtitle-display" class="text-lg font-bold text-pastel-text"></h3>
                 </div>
                 <div class="text-right">
@@ -285,6 +196,18 @@ $overall_chapter_quiz = [
                 <div id="options-container" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
             </div>
 
+            <!-- AI Feedback Display Container -->
+            <div id="ai-feedback-container" class="hidden mb-6 p-4 rounded-xl bg-blue-50/70 border border-blue-200">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-base">💡</span>
+                    <h5 class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Explanations & Feedback</h5>
+                </div>
+                <p id="ai-feedback-text" class="text-sm text-slate-700 leading-relaxed"></p>
+                <button id="next-question-btn" onclick="proceedToNextQuestion()" class="mt-4 px-4 py-2 bg-pastel-primary text-white text-xs font-bold rounded-xl hover:bg-pastel-hover transition hidden">
+                    Next Question →
+                </button>
+            </div>
+
             <div class="flex justify-between items-center pt-4 border-t border-slate-100">
                 <button onclick="exitQuiz()" class="text-xs font-semibold text-slate-400 hover:text-rose-500 transition">
                     ✕ Cancel & Exit
@@ -297,7 +220,7 @@ $overall_chapter_quiz = [
             <div class="w-16 h-16 bg-blue-50 text-pastel-primary rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
                 🎯
             </div>
-            <h2 class="text-2xl font-bold text-pastel-text mb-1">Quiz Completed!</h2>
+            <h2 class="text-2xl font-bold text-pastel-text mb-1">AI Quiz Completed!</h2>
             <p id="result-quiz-name" class="text-sm text-slate-500 mb-4"></p>
 
             <div class="bg-pastel-bg p-6 rounded-2xl border border-blue-50 max-w-xs mx-auto mb-6">
@@ -307,7 +230,7 @@ $overall_chapter_quiz = [
 
             <div class="flex justify-center gap-3">
                 <button onclick="exitQuiz()" class="px-6 py-2.5 bg-pastel-primary text-white text-xs font-bold rounded-xl hover:bg-pastel-hover transition">
-                    Back to Quiz List
+                    Back to Quiz Menu
                 </button>
                 <a href="module.php?chap=<?= $selected_chap_id ?>" class="px-6 py-2.5 bg-white border border-blue-200 text-pastel-text text-xs font-bold rounded-xl hover:bg-slate-50 transition">
                     Review Module Notes
@@ -317,47 +240,157 @@ $overall_chapter_quiz = [
 
     </main>
 
-    <!-- Interactive Quiz Engine Script -->
+    <!-- Interactive Quiz Engine & AI Integration Script -->
     <script>
         let currentQuiz = null;
         let activeQIndex = 0;
         let score = 0;
+        let isEvaluating = false;
+        const assignedQuizzes = <?= json_encode($assigned_quizzes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
-        function startQuiz(quizData) {
-            currentQuiz = quizData;
-            activeQIndex = 0;
-            score = 0;
+        function startAssignedQuiz(chapterName) {
+            const questions = (assignedQuizzes[chapterName] || []).map((question) => ({
+                q: question.question,
+                options: [question.option_a, question.option_b, question.option_c, question.option_d],
+                ans: ['A', 'B', 'C', 'D'].indexOf(question.correct_option.toUpperCase())
+            }));
+
+            if (questions.length === 0) {
+                alert('This assigned quiz has no questions yet.');
+                return;
+            }
 
             document.getElementById('quiz-menu').classList.add('hidden');
             document.getElementById('quiz-result').classList.add('hidden');
             document.getElementById('quiz-runner').classList.remove('hidden');
+            startQuizEngine({
+                title: 'Teacher Quiz: ' + chapterName,
+                questions: questions
+            });
+        }
 
-            document.getElementById('quiz-title-display').innerText = "Active Quiz";
+        async function fetchAIQuiz(topicName) {
+            document.getElementById('quiz-menu').classList.add('hidden');
+            document.getElementById('quiz-result').classList.add('hidden');
+            document.getElementById('quiz-runner').classList.remove('hidden');
+
+            document.getElementById('quiz-title-display').innerText = "Gemini AI Generator";
+            document.getElementById('quiz-subtitle-display').innerText = "Topic: " + topicName;
+            document.getElementById('question-text').innerText = "⏳ Generating custom AI quiz questions, please wait...";
+            document.getElementById('options-container').innerHTML = '';
+            document.getElementById('ai-feedback-container').classList.add('hidden');
+
+            try {
+                const response = await fetch('generate_ai_quiz.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topic: topicName })
+                });
+                
+                const result = await response.json();
+                
+                if (!result.candidates || !result.candidates[0].content) {
+                    throw new Error("Invalid response format from server.");
+                }
+
+                const rawJsonText = result.candidates[0].content.parts[0].text;
+                const quizPayload = JSON.parse(rawJsonText);
+                
+                if (!quizPayload.questions || quizPayload.questions.length === 0) {
+                    throw new Error("No questions returned in JSON payload.");
+                }
+
+                startQuizEngine({
+                    title: "AI Quiz: " + topicName,
+                    questions: quizPayload.questions
+                });
+                
+            } catch (error) {
+                console.error("Failed to generate AI quiz:", error);
+                alert("Could not generate AI quiz. Please check your API key and network connection.");
+                exitQuiz();
+            }
+        }
+
+        function startQuizEngine(quizData) {
+            currentQuiz = quizData;
+            activeQIndex = 0;
+            score = 0;
+            isEvaluating = false;
+
+            document.getElementById('quiz-title-display').innerText = "Active AI Quiz";
             document.getElementById('quiz-subtitle-display').innerText = currentQuiz.title;
 
             renderQuestion();
         }
 
         function renderQuestion() {
+            isEvaluating = false;
             const qData = currentQuiz.questions[activeQIndex];
             document.getElementById('quiz-progress').innerText = `${activeQIndex + 1} / ${currentQuiz.questions.length}`;
             document.getElementById('question-text').innerText = qData.q;
 
+            // Hide previous feedback box & clear text
+            document.getElementById('ai-feedback-container').classList.add('hidden');
+            document.getElementById('ai-feedback-text').innerText = '';
+            document.getElementById('next-question-btn').classList.add('hidden');
+
             const optsDiv = document.getElementById('options-container');
             optsDiv.innerHTML = '';
+            optsDiv.classList.remove('pointer-events-none', 'opacity-50');
 
             qData.options.forEach((opt, idx) => {
                 const btn = document.createElement('button');
                 btn.className = "p-4 text-left border-2 border-slate-100 rounded-xl hover:border-pastel-primary hover:bg-blue-50/50 text-sm font-medium transition duration-200";
                 btn.innerText = opt;
-                btn.onclick = () => selectOption(idx === qData.ans);
+                btn.onclick = () => handleOptionSelection(idx, qData);
                 optsDiv.appendChild(btn);
             });
         }
 
-        function selectOption(isCorrect) {
+        async function handleOptionSelection(selectedIndex, qData) {
+            if (isEvaluating) return;
+            isEvaluating = true;
+
+            const selectedAnswerText = qData.options[selectedIndex];
+            const isCorrect = selectedIndex === qData.ans;
             if (isCorrect) score++;
 
+            // Lock options to prevent double-clicking
+            const optsDiv = document.getElementById('options-container');
+            optsDiv.classList.add('pointer-events-none', 'opacity-50');
+
+            // Show loading placeholder in AI feedback container
+            const feedbackContainer = document.getElementById('ai-feedback-container');
+            const feedbackText = document.getElementById('ai-feedback-text');
+            feedbackContainer.classList.remove('hidden');
+            feedbackText.innerText = 'Evaluating answer with AI...';
+
+            try {
+                const aiText = await submitAnswerToAI(qData.q, selectedAnswerText);
+                feedbackText.innerText = aiText;
+            } catch (error) {
+                feedbackText.innerText = isCorrect 
+                    ? 'Correct! (Note: Could not fetch advanced AI feedback at the moment.)' 
+                    : 'Incorrect. (Note: Could not fetch advanced AI feedback at the moment.)';
+            }
+
+            // Show next action button
+            document.getElementById('next-question-btn').classList.remove('hidden');
+        }
+
+        async function submitAnswerToAI(questionText, studentAnswer) {
+            const response = await fetch('evaluate_quiz.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: questionText, answer: studentAnswer })
+            });
+            const result = await response.json();
+            const aiText = result.candidates[0].content.parts[0].text;
+            return aiText;
+        }
+
+        function proceedToNextQuestion() {
             if (activeQIndex + 1 < currentQuiz.questions.length) {
                 activeQIndex++;
                 renderQuestion();
