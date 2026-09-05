@@ -158,7 +158,7 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eduhunt - Modules</title>
+    <title>EduHunt - Modules</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {

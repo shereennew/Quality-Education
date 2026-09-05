@@ -62,7 +62,7 @@ $islands = [
                 </div>
 
                 <span class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block">
-                    Eduhunt
+                    EduHunt
                 </span>
 
             </a>
@@ -394,7 +394,7 @@ $islands = [
     <div
         class="relative w-full max-w-[85rem] aspect-[16/8.5] rounded-2xl overflow-hidden border-4 border-pastel-card shadow-xl bg-pastel-bg">
 
-        <img src="/Quality-Education/src/student/map.jpeg" alt="Eduhunt Map"
+        <img src="/Quality-Education/src/student/map.jpeg" alt="EduHunt Map"
             class="absolute inset-0 w-full h-full object-cover select-none z-0">
 
         <?php foreach ($islands as $id => $island):

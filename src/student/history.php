@@ -88,7 +88,7 @@ $incorrectAnswers = $stmt_incorrect->fetchAll(PDO::FETCH_ASSOC);
                 <div class="bg-pastel-badge w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm">
                     <span class="text-2xl">📖</span>
                 </div>
-                <span class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block">Eduhunt</span>
+                <span class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block">EduHunt</span>
             </a>
 
             <div class="hidden md:flex items-center justify-center flex-1 mx-6">
