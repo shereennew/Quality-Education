@@ -1,16 +1,15 @@
 <?php
 $student_name = "Alex Tan";
+$active_tab = $_GET['page'] ?? 'quiz';
 
-// 顶部 Navigation 配置
+// Nav Bar Items (Identical to student_dashboard.php)
 $nav_items = [
-    'home'     => ['label' => 'Home',     'url' => 'student_dashboard.php?page=home'],
-    'notes'    => ['label' => 'Notes',    'url' => 'student_dashboard.php?page=notes'],
-    'practice' => ['label' => 'Practice', 'url' => 'student_dashboard.php?page=practice'],
-    'quiz'     => ['label' => 'Quiz',     'url' => 'quiz.php'],
-    'module'   => ['label' => 'Module',   'url' => 'module.php']
+    'home'        => ['label' => 'Home',        'url' => 'student_dashboard.php'],
+    'module'      => ['label' => 'Modules',     'url' => 'module.php'],
+    'quiz'        => ['label' => 'Quizzes',     'url' => 'quiz.php'],
+    'math_helper' => ['label' => 'Math Helper', 'url' => 'math_helper.php']
 ];
 
-// 章节信息
 $chapter_info = [
     'title' => 'Chapter 4: Waterfall Forest',
     'topic' => 'Adding & Subtracting Unlike Fractions'
