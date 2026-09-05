@@ -45,8 +45,15 @@ if (!$current_class) {
     die("Classroom not found.");
 }
 
-// Fetch dynamic chapters from chapter_materials if available, fallback to default chapters
-$stmt_all_chapters = $pdo->query("SELECT DISTINCT chapter_name FROM chapter_materials");
+
+// Fetch dynamic chapters sorted properly or by their natural occurrence
+$stmt_all_chapters = $pdo->query("
+    SELECT chapter_name FROM (
+        SELECT DISTINCT chapter_name FROM chapter_materials 
+        UNION 
+        SELECT DISTINCT chapter_name FROM chapter_quizzes
+    ) ORDER BY CAST(SUBSTR(chapter_name, INSTR(chapter_name, 'Ch ') + 3) AS INTEGER) ASC
+");
 $db_chapters = $stmt_all_chapters->fetchAll(PDO::FETCH_COLUMN);
 $chapters = !empty($db_chapters) ? $db_chapters : ["Fractions (Ch 1)", "Decimals (Ch 2)", "Percentages (Ch 3)"];
 
@@ -56,9 +63,20 @@ foreach ($chapters as $index => $ch_name) {
     $stmt_uc = $pdo->prepare("SELECT is_unlocked FROM classroom_chapters WHERE classroom_id = ? AND chapter_name = ?");
     $stmt_uc->execute([$class_id, $ch_name]);
     $val = $stmt_uc->fetchColumn();
-    // Default: First chapter unlocked by default, others locked
     $unlocked_chapters[$ch_name] = ($val !== false) ? intval($val) : ($index === 0 ? 1 : 0);
 }
+
+// Dynamically compute and sync student scores based on correct assessment answers
+$pdo->prepare("
+    UPDATE students 
+    SET score = (
+        SELECT COALESCE(SUM(sa_ans.is_correct * 10), 0) 
+        FROM student_answers sa_ans
+        JOIN student_assessments sa ON sa_ans.assessment_id = sa.id
+        WHERE sa.student_id = students.id
+    )
+    WHERE classroom_id = ?
+")->execute([$class_id]);
 
 // Fetch students for this classroom
 $stmt_students = $pdo->prepare("SELECT * FROM students WHERE classroom_id = ?");
@@ -78,30 +96,33 @@ foreach ($students_raw as $s) {
         $lvl = $stmt_prog->fetchColumn();
         $student_levels[$ch_name] = $lvl !== false ? intval($lvl) : 0;
 
-        // Check if this chapter is globally unlocked by the teacher
         $isUnlocked = $unlocked_chapters[$ch_name] ?? 0;
 
-        // Only include unlocked chapters in the summary calculation
         if ($isUnlocked) {
             $total_earned_score += $student_levels[$ch_name];
-
-            // Get max possible levels/quizzes for this specific chapter
             $stmt_max = $pdo->prepare("SELECT COUNT(*) FROM chapter_quizzes WHERE chapter_name = ?");
             $stmt_max->execute([$ch_name]);
             $ch_max = max(1, $stmt_max->fetchColumn());
-
             $max_possible_score += $ch_max;
         }
     }
 
-    // Calculate completion percentage based strictly on unlocked chapters
     $percentage = $max_possible_score > 0 ? round(($total_earned_score / $max_possible_score) * 100) : 0;
+
+    $stmt_live_score = $pdo->prepare("
+        SELECT COALESCE(SUM(sa_ans.is_correct * 10), 0) 
+        FROM student_answers sa_ans 
+        JOIN student_assessments sa ON sa_ans.assessment_id = sa.id 
+        WHERE sa.student_id = ?
+    ");
+    $stmt_live_score->execute([$s['id']]);
+    $live_score = $stmt_live_score->fetchColumn();
 
     $students[] = [
         "id" => $s['id'],
         "name" => $s['name'],
         "status" => $s['status'],
-        "score" => $s['score'] ?? 0,
+        "score" => intval($live_score),
         "progress" => $student_levels,
         "summary" => $percentage . "%"
     ];
@@ -120,10 +141,8 @@ $stmt_avg = $pdo->prepare("
 $stmt_avg->execute([$overview_chapter, $class_id]);
 $avg_level = $stmt_avg->fetchColumn() ?: 0;
 
-// Dynamically fetch max quizzes/levels for the selected overview chapter to calculate circle percentage accurately
-$stmt_max_overview = $pdo->prepare("SELECT COUNT(*) FROM chapter_quizzes WHERE chapter_name = ?");
-$stmt_max_overview->execute([$overview_chapter]);
-$overview_max_scale = max(1, $stmt_max_overview->fetchColumn());
+// Define max level scale (adjust to 3 if your max student level per chapter is 3)
+$overview_max_scale = 3; 
 $overview_percentage = min(100, round(($avg_level / $overview_max_scale) * 100));
 
 // Filter criteria for table section
@@ -134,10 +153,8 @@ if (!is_array($status_filter)) {
 }
 $quiz_filter = $_GET['quiz_filter'] ?? '';
 
-// Calculate total active filter count for badge display
 $active_filter_count = count($status_filter) + (!empty($quiz_filter) ? 1 : 0) + (!empty($table_chapter) && $table_chapter !== $chapters[0] ? 1 : 0);
 
-// Filter students array based on status checkboxes
 $filtered_students = array_filter($students, function($student) use ($status_filter) {
     if (!empty($status_filter) && !in_array($student['status'], $status_filter)) {
         return false;
@@ -145,16 +162,32 @@ $filtered_students = array_filter($students, function($student) use ($status_fil
     return true;
 });
 
-// Fetch strictly ONE quiz column (either the specific filtered quiz or chapter's first default quiz)
+// Fetch Main Topic Quizzes for the table section
 if (!empty($quiz_filter)) {
-    $stmt_quizzes = $pdo->prepare("SELECT id, question FROM chapter_quizzes WHERE id = ?");
-    $stmt_quizzes->execute([$quiz_filter]);
+    $stmt_main_q = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE id = ? AND (subtopic_name IS NULL OR subtopic_name = '')");
+    $stmt_main_q->execute([$quiz_filter]);
 } else {
-    $stmt_quizzes = $pdo->prepare("SELECT id, question FROM chapter_quizzes WHERE chapter_name = ? ORDER BY id ASC LIMIT 1");
-    $stmt_quizzes->execute([$table_chapter]);
+    $stmt_main_q = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE chapter_name = ? AND (subtopic_name IS NULL OR subtopic_name = '') ORDER BY id ASC");
+    $stmt_main_q->execute([$table_chapter]);
 }
-$chapter_quizzes = $stmt_quizzes->fetchAll(PDO::FETCH_ASSOC);
-$total_quizzes = count($chapter_quizzes);
+$table_main_quizzes = $stmt_main_q->fetchAll(PDO::FETCH_ASSOC);
+
+// Fetch Subtopic Quizzes for the table section
+if (!empty($quiz_filter)) {
+    $stmt_sub_q = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE id = ? AND subtopic_name IS NOT NULL AND subtopic_name != ''");
+    $stmt_sub_q->execute([$quiz_filter]);
+} else {
+    $stmt_sub_q = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE chapter_name = ? AND subtopic_name IS NOT NULL AND subtopic_name != '' ORDER BY subtopic_name ASC, id ASC");
+    $stmt_sub_q->execute([$table_chapter]);
+}
+$table_sub_quizzes_raw = $stmt_sub_q->fetchAll(PDO::FETCH_ASSOC);
+
+$table_grouped_sub_quizzes = [];
+foreach ($table_sub_quizzes_raw as $q) {
+    $table_grouped_sub_quizzes[$q['subtopic_name']][] = $q;
+}
+
+$total_displayed_quizzes = count($table_main_quizzes) + count($table_sub_quizzes_raw);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -259,7 +292,7 @@ $total_quizzes = count($chapter_quizzes);
                                 <span
                                     class="text-2xl font-bold text-pastel-text"><?php echo $overview_percentage; ?>%</span>
                                 <span
-                                    class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Done</span>
+                                    class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Mastery</span>
                             </div>
                         </div>
 
@@ -267,11 +300,6 @@ $total_quizzes = count($chapter_quizzes);
                             <h3 class="text-xs font-bold text-pastel-text">
                                 <?php echo htmlspecialchars($overview_chapter); ?>
                             </h3>
-                            <p class="text-[11px] text-slate-500 max-w-xs">
-                                Average class progress score stands at <span
-                                    class="font-bold text-pastel-text"><?php echo round($avg_level, 1); ?> /
-                                    <?php echo $overview_max_scale; ?></span> levels completed.
-                            </p>
                             <div class="flex flex-wrap gap-1.5 justify-center sm:justify-start pt-1">
                                 <span
                                     class="text-[9px] font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-lg">Target:
@@ -297,7 +325,16 @@ $total_quizzes = count($chapter_quizzes);
                         <div class="space-y-2">
                             <?php
                             try {
-                                $stmt_rank = $pdo->prepare("SELECT name, score FROM students WHERE classroom_id = ? ORDER BY score ASC LIMIT 5");
+                                $stmt_rank = $pdo->prepare("
+                                    SELECT s.name, COALESCE(SUM(sa_ans.is_correct * 10), 0) as total_score 
+                                    FROM students s 
+                                    LEFT JOIN student_assessments sa ON s.id = sa.student_id 
+                                    LEFT JOIN student_answers sa_ans ON sa.id = sa_ans.assessment_id 
+                                    WHERE s.classroom_id = ? 
+                                    GROUP BY s.id, s.name 
+                                    ORDER BY total_score ASC 
+                                    LIMIT 5
+                                ");
                                 $stmt_rank->execute([$class_id]);
                                 $rankings = $stmt_rank->fetchAll(PDO::FETCH_ASSOC);
                             } catch (Exception $e) {
@@ -315,7 +352,7 @@ $total_quizzes = count($chapter_quizzes);
                                                 class="font-semibold text-pastel-text truncate max-w-[110px]"><?php echo htmlspecialchars($student['name']); ?></span>
                                         </div>
                                         <span
-                                            class="bg-rose-50 text-rose-700 font-bold px-1.5 py-0.5 rounded border border-rose-100"><?php echo intval($student['score']); ?>
+                                            class="bg-rose-50 text-rose-700 font-bold px-1.5 py-0.5 rounded border border-rose-100"><?php echo intval($student['total_score']); ?>
                                             pts</span>
                                     </div>
                                 <?php endforeach; ?>
@@ -376,17 +413,15 @@ $total_quizzes = count($chapter_quizzes);
             <div
                 class="p-6 border-b border-blue-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
-                    <h2 class="text-base font-bold text-pastel-text">Student Progress Matrix <span class="text-xs font-normal text-slate-400">(Current Chapter: <?php echo htmlspecialchars($table_chapter); ?>)</span></h2>
+                    <h2 class="text-base font-bold text-pastel-text">Student Progress Table <span class="text-xs font-normal text-slate-400">(Current Chapter: <?php echo htmlspecialchars($table_chapter); ?>)</span></h2>
                 </div>
 
                 <div class="flex items-center gap-3 w-full lg:w-auto justify-end">
-                    <!-- Click Filter Button Popup Trigger -->
                     <button type="button" onclick="openFilterModal()"
                         class="text-xs px-3.5 py-2 rounded-xl border border-blue-100 bg-white hover:bg-pastel-badge font-semibold text-pastel-text transition shadow-sm flex items-center space-x-1.5 shrink-0">
                         <span>🔍 Filter <?php echo $active_filter_count > 0 ? '(' . $active_filter_count . ')' : ''; ?></span>
                     </button>
 
-                    <!-- AI Summary Trigger Button -->
                     <button type="button" onclick="openGlobalAiSummaryModal()"
                         class="text-xs px-3.5 py-2 rounded-xl border border-blue-100 bg-white hover:bg-pastel-badge font-semibold text-pastel-text transition shadow-sm flex items-center space-x-1.5 shrink-0">
                         <span>✨ AI Summary</span>
@@ -401,131 +436,184 @@ $total_quizzes = count($chapter_quizzes);
                             class="bg-pastel-bg text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-blue-100">
                             <th class="py-3.5 px-6">Student Name</th>
                             <th class="py-3.5 px-6">Status</th>
-                            <?php if ($total_quizzes > 0): ?>
-                                <?php foreach ($chapter_quizzes as $quiz): ?>
-                                    <th class="py-3.5 px-6 text-center">Main Topic Quiz</th>
+                            
+                            <?php if (count($table_main_quizzes) > 0): ?>
+                                <?php foreach ($table_main_quizzes as $mq): ?>
+                                    <th class="py-3.5 px-6 text-center">
+                                        <a href="quiz_summary.php?quiz_id=<?php echo $mq['id']; ?>&classroom_id=<?php echo $class_id; ?>" 
+                                           class="hover:text-pastel-hover underline decoration-pastel-primary/50 underline-offset-4 transition">
+                                            Main Topic Quiz (Q#<?php echo $mq['id']; ?>)
+                                        </a>
+                                    </th>
                                 <?php endforeach; ?>
-                            <?php else: ?>
-                                <th class="py-3.5 px-6 text-center">Main Topic Quiz</th>
                             <?php endif; ?>
+
+                            <?php foreach ($table_grouped_sub_quizzes as $sub_name => $sub_qs): ?>
+                                <?php foreach ($sub_qs as $sq): ?>
+                                    <th class="py-3.5 px-6 text-center">
+                                        <a href="quiz_summary.php?quiz_id=<?php echo $sq['id']; ?>&classroom_id=<?php echo $class_id; ?>" 
+                                           class="hover:text-pastel-hover underline decoration-pastel-primary/50 underline-offset-4 transition">
+                                            <?php echo htmlspecialchars($sub_name); ?> (Q#<?php echo $sq['id']; ?>)
+                                        </a>
+                                    </th>
+                                <?php endforeach; ?>
+                            <?php endforeach; ?>
+
                             <th class="py-3.5 px-6 text-center">Chapter Progress</th>
                             <th class="py-3.5 px-6 text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-blue-50 text-sm">
-                        <?php foreach ($filtered_students as $student): ?>
+    <?php foreach ($filtered_students as $student): ?>
+        <?php
+        $isUnlocked = $unlocked_chapters[$table_chapter] ?? 0;
+        $student_quiz_answers = [];
+
+        $stmt_max_q_count = $pdo->prepare("SELECT COUNT(*) FROM chapter_quizzes WHERE chapter_name = ?");
+        $stmt_max_q_count->execute([$table_chapter]);
+        $chapter_total_quiz_count = max(1, $stmt_max_q_count->fetchColumn());
+
+        if ($isUnlocked) {
+            foreach ($table_main_quizzes as $q) {
+                $stmt_ans = $pdo->prepare("
+                    SELECT sa_ans.is_correct, sa_ans.student_answer 
+                    FROM student_answers sa_ans
+                    JOIN student_assessments sa ON sa_ans.assessment_id = sa.id
+                    WHERE sa.student_id = ? AND sa_ans.question_text LIKE ?
+                ");
+                $stmt_ans->execute([$student['id'], '%' . $q['question'] . '%']);
+                $ans_data = $stmt_ans->fetch(PDO::FETCH_ASSOC);
+                
+                if ($ans_data) {
+                    $status = ($ans_data['is_correct'] == 1) ? 'Correct' : 'Incorrect';
+                } else {
+                    $status = 'Not Attempted';
+                }
+                $student_quiz_answers[$q['id']] = $status;
+            }
+        }
+
+        // Updated progress count query using student_assessments and student_answers
+        $stmt_prog_cnt = $pdo->prepare("
+            SELECT COUNT(DISTINCT sa.id) FROM student_assessments sa 
+            JOIN student_answers sa_ans ON sa.id = sa_ans.assessment_id 
+            WHERE sa.student_id = ? AND sa.title LIKE ? AND sa_ans.is_correct = 1
+        ");
+        $stmt_prog_cnt->execute([$student['id'], '%' . $table_chapter . '%']);
+        $completed_quiz_count = $stmt_prog_cnt->fetchColumn() ?: 0;
+        $chapter_percentage = round(($completed_quiz_count / $chapter_total_quiz_count) * 100);
+        ?>
+        <tr class="hover:bg-pastel-bg/50 transition">
+            <td class="py-4 px-6 font-medium text-pastel-text">
+                <?php echo htmlspecialchars($student['name']); ?>
+            </td>
+            <td class="py-4 px-6">
+                <span
+                    class="text-xs font-medium px-3 py-1 rounded-full <?php echo in_array($student['status'], ['Struggling', 'Needs Help']) ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-pastel-badge text-pastel-hover'; ?>">
+                    <?php echo $student['status']; ?>
+                </span>
+            </td>
+
+            <?php if (!$isUnlocked): ?>
+                <td colspan="<?php echo max(1, $total_displayed_quizzes); ?>"
+                    class="py-4 px-6 text-center text-slate-400 text-xs italic bg-slate-50/50">
+                    Chapter Locked by Teacher
+                </td>
+                <td class="py-4 px-6 text-center font-bold text-slate-400">
+                    0%
+                </td>
+            <?php elseif ($total_displayed_quizzes === 0): ?>
+                <td class="py-4 px-6 text-center text-slate-400 text-xs italic">
+                    No quizzes configured for this chapter.
+                </td>
+                <td class="py-4 px-6 text-center font-bold text-pastel-text">
+                    0%
+                </td>
+            <?php else: ?>
+                <?php if (count($table_main_quizzes) > 0): ?>
+                    <?php foreach ($table_main_quizzes as $q): ?>
+                        <?php $status = $student_quiz_answers[$q['id']] ?? 'Pending'; ?>
+                        <td class="py-4 px-6 text-center">
+                            <div class="inline-flex items-center justify-center px-3 py-1 rounded-xl text-xs font-semibold shadow-2xs
                             <?php
-                            $isUnlocked = $unlocked_chapters[$table_chapter] ?? 0;
-                            $student_quiz_answers = [];
-
-                            $stmt_max_q_count = $pdo->prepare("SELECT COUNT(*) FROM chapter_quizzes WHERE chapter_name = ?");
-                            $stmt_max_q_count->execute([$table_chapter]);
-                            $chapter_total_quiz_count = max(1, $stmt_max_q_count->fetchColumn());
-
-                            if ($isUnlocked && $total_quizzes > 0) {
-                                foreach ($chapter_quizzes as $q) {
-                                    $stmt_ans = $pdo->prepare("SELECT answer_status, score FROM student_quiz_answers WHERE student_id = ? AND quiz_id = ?");
-                                    $stmt_ans->execute([$student['id'], $q['id']]);
-                                    $ans_data = $stmt_ans->fetch(PDO::FETCH_ASSOC);
-
-                                    $student_quiz_answers[$q['id']] = $ans_data ? $ans_data['answer_status'] : 'Not Attempted';
-                                }
+                            if ($status === 'Correct' || $status === 'Completed') {
+                                echo 'bg-emerald-100 text-emerald-700 border border-emerald-200';
+                            } elseif ($status === 'Attempted') {
+                                echo 'bg-amber-100 text-amber-700 border border-amber-200';
+                            } elseif ($status === 'Incorrect' || $status === 'Failed') {
+                                echo 'bg-rose-100 text-rose-700 border border-rose-200';
+                            } else {
+                                echo 'bg-slate-100 text-slate-500 border border-slate-200';
                             }
+                            ?>">
+                                Main Topic: <?php echo htmlspecialchars($status); ?>
+                            </div>
+                        </td>
+                    <?php endforeach; ?>
+                <?php endif; ?>
 
-                            $stmt_prog_cnt = $pdo->prepare("
-                                SELECT COUNT(DISTINCT sq.quiz_id) FROM student_quiz_answers sq 
-                                JOIN chapter_quizzes cq ON sq.quiz_id = cq.id 
-                                WHERE sq.student_id = ? AND cq.chapter_name = ? AND (sq.answer_status = 'Correct' OR sq.answer_status = 'Completed')
-                            ");
-                            $stmt_prog_cnt->execute([$student['id'], $table_chapter]);
-                            $completed_quiz_count = $stmt_prog_cnt->fetchColumn() ?: 0;
-                            $chapter_percentage = round(($completed_quiz_count / $chapter_total_quiz_count) * 100);
-                            ?>
-                            <tr class="hover:bg-pastel-bg/50 transition">
-                                <td class="py-4 px-6 font-medium text-pastel-text">
-                                    <?php echo htmlspecialchars($student['name']); ?>
-                                </td>
-                                <td class="py-4 px-6">
-                                    <span
-                                        class="text-xs font-medium px-3 py-1 rounded-full <?php echo in_array($student['status'], ['Struggling', 'Needs Help']) ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-pastel-badge text-pastel-hover'; ?>">
-                                        <?php echo $student['status']; ?>
-                                    </span>
-                                </td>
+                <?php foreach ($table_grouped_sub_quizzes as $sub_name => $sub_qs): ?>
+                    <?php foreach ($sub_qs as $q): ?>
+                        <?php $status = $student_quiz_answers[$q['id']] ?? 'Pending'; ?>
+                        <td class="py-4 px-6 text-center">
+                            <div class="inline-flex items-center justify-center px-3 py-1 rounded-xl text-xs font-semibold shadow-2xs
+                            <?php
+                            if ($status === 'Correct' || $status === 'Completed') {
+                                echo 'bg-emerald-100 text-emerald-700 border border-emerald-200';
+                            } elseif ($status === 'Attempted') {
+                                echo 'bg-amber-100 text-amber-700 border border-amber-200';
+                            } elseif ($status === 'Incorrect' || $status === 'Failed') {
+                                echo 'bg-rose-100 text-rose-700 border border-rose-200';
+                            } else {
+                                echo 'bg-slate-100 text-slate-500 border border-slate-200';
+                            }
+                            ?>">
+                                <?php echo htmlspecialchars($sub_name); ?>: <?php echo htmlspecialchars($status); ?>
+                            </div>
+                        </td>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
 
-                                <?php if (!$isUnlocked): ?>
-                                    <td colspan="<?php echo max(1, $total_quizzes); ?>"
-                                        class="py-4 px-6 text-center text-slate-400 text-xs italic bg-slate-50/50">
-                                        Chapter Locked by Teacher
-                                    </td>
-                                    <td class="py-4 px-6 text-center font-bold text-slate-400">
-                                        0%
-                                    </td>
-                                <?php elseif ($total_quizzes === 0): ?>
-                                    <td class="py-4 px-6 text-center text-slate-400 text-xs italic">
-                                        No quizzes configured for this chapter.
-                                    </td>
-                                    <td class="py-4 px-6 text-center font-bold text-pastel-text">
-                                        0%
-                                    </td>
-                                <?php else: ?>
-                                    <?php foreach ($chapter_quizzes as $q): ?>
-                                        <?php $status = $student_quiz_answers[$q['id']] ?? 'Pending'; ?>
-                                        <td class="py-4 px-6 text-center">
-                                            <div class="inline-flex items-center justify-center px-3 py-1 rounded-xl text-xs font-semibold shadow-2xs
-                                            <?php
-                                            if ($status === 'Correct' || $status === 'Completed') {
-                                                echo 'bg-emerald-100 text-emerald-700 border border-emerald-200';
-                                            } elseif ($status === 'Incorrect' || $status === 'Failed') {
-                                                echo 'bg-rose-100 text-rose-700 border border-rose-200';
-                                            } else {
-                                                echo 'bg-slate-100 text-slate-500 border border-slate-200';
-                                            }
-                                            ?>">
-                                                Main Topic Quiz: <?php echo htmlspecialchars($status); ?>
-                                            </div>
-                                        </td>
-                                    <?php endforeach; ?>
+                <td class="py-4 px-6 text-center">
+                    <span
+                        class="inline-flex items-center justify-center px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                        <?php echo $chapter_percentage; ?>%
+                    </span>
+                </td>
+            <?php endif; ?>
 
-                                    <td class="py-4 px-6 text-center">
-                                        <span
-                                            class="inline-flex items-center justify-center px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                                            <?php echo $chapter_percentage; ?>%
-                                        </span>
-                                    </td>
-                                <?php endif; ?>
+            <td class="py-4 px-6 text-center">
+                <div class="flex items-center justify-center space-x-2">
+                    <button type="button"
+                        onclick="openFeedbackModal(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['name'], ENT_QUOTES); ?>')"
+                        title="Give Feedback"
+                        class="px-2.5 h-8 bg-white hover:bg-pastel-badge text-pastel-text hover:text-pastel-hover border border-blue-100 rounded-lg flex items-center justify-center transition shadow-sm text-xs font-semibold">
+                        Feedback
+                    </button>
 
-                                <td class="py-4 px-6 text-center">
-                                    <div class="flex items-center justify-center space-x-2">
-                                        <button type="button"
-                                            onclick="openFeedbackModal(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['name'], ENT_QUOTES); ?>')"
-                                            title="Give Feedback"
-                                            class="px-2.5 h-8 bg-white hover:bg-pastel-badge text-pastel-text hover:text-pastel-hover border border-blue-100 rounded-lg flex items-center justify-center transition shadow-sm text-xs font-semibold">
-                                            Feedback
-                                        </button>
-
-                                        <a href="upload_resource.php?student_id=<?php echo htmlspecialchars($student['id']); ?>"
-                                            title="Upload Extra Resource"
-                                            class="w-8 h-8 bg-white hover:bg-pastel-badge text-pastel-text hover:text-pastel-hover border border-blue-100 rounded-lg flex items-center justify-center transition shadow-sm font-bold text-base">
-                                            +
-                                        </a>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
+                    <a href="upload_resource.php?student_id=<?php echo htmlspecialchars($student['id']); ?>"
+                        title="Upload Extra Resource"
+                        class="w-8 h-8 bg-white hover:bg-pastel-badge text-pastel-text hover:text-pastel-hover border border-blue-100 rounded-lg flex items-center justify-center transition shadow-sm font-bold text-base">
+                        +
+                    </a>
+                </div>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+</tbody>
                 </table>
             </div>
         </section>
 
     </main>
 
-    <!-- Filter Pop-up Modal Container with Chapter, Quiz, and Status Options -->
+    <!-- Filter Pop-up Modal Container -->
     <div id="filterModal"
         class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
         <div
             class="bg-white rounded-2xl shadow-xl border border-blue-100 max-w-md w-full overflow-hidden transform transition-all">
             <div class="p-4 border-b border-blue-100 flex justify-between items-center bg-pastel-bg/50">
-                <h3 class="text-sm font-bold text-pastel-text">Filter Matrix Options</h3>
+                <h3 class="text-sm font-bold text-pastel-text">Filter Options</h3>
                 <button type="button" onclick="closeFilterModal()"
                     class="text-slate-400 hover:text-slate-600 font-bold text-base px-2 py-1 rounded-lg">&times;</button>
             </div>
@@ -535,7 +623,6 @@ $total_quizzes = count($chapter_quizzes);
                     <input type="hidden" name="overview_chapter" value="<?php echo htmlspecialchars($_GET['overview_chapter']); ?>">
                 <?php endif; ?>
 
-                <!-- 1. Chapter Selection -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 mb-1.5">Select Chapter:</label>
                     <div class="space-y-1.5 bg-pastel-bg/30 p-3 rounded-xl border border-blue-50">
@@ -544,6 +631,7 @@ $total_quizzes = count($chapter_quizzes);
                         ?>
                             <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer">
                                 <input type="radio" name="table_chapter" value="<?php echo htmlspecialchars($ch); ?>" <?php echo $isChapterChecked; ?>
+                                    onchange="this.form.submit()"
                                     class="border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
                                 <span><?php echo htmlspecialchars($ch); ?></span>
                             </label>
@@ -551,33 +639,33 @@ $total_quizzes = count($chapter_quizzes);
                     </div>
                 </div>
 
-                <!-- 2. Quiz Selection -->
                 <div>
-                    <label class="block text-xs font-semibold text-slate-500 mb-1.5">Select Quiz:</label>
-                    <div class="space-y-1.5 bg-pastel-bg/30 p-3 rounded-xl border border-blue-50 max-h-36 overflow-y-auto">
+                    <label class="block text-xs font-semibold text-slate-500 mb-1.5">Select Topic / Subtopic:</label>
+                    <div class="space-y-3 bg-pastel-bg/30 p-3 rounded-xl border border-blue-50 max-h-48 overflow-y-auto">
                         <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer">
-                            <input type="radio" name="quiz_filter" value="" <?php echo empty($quiz_filter) ? 'checked' : ''; ?>
+                            <input type="radio" name="quiz_filter" value="" <?php echo empty($_GET['quiz_filter']) ? 'checked' : ''; ?>
                                 class="border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
-                            <span>All Quizzes (First Default)</span>
+                            <span>All Topics (Default)</span>
                         </label>
+
                         <?php 
-                        $stmt_modal_q = $pdo->prepare("SELECT id, question FROM chapter_quizzes WHERE chapter_name = ?");
-                        $stmt_modal_q->execute([$table_chapter]);
-                        $modal_chapter_quizzes = $stmt_modal_q->fetchAll(PDO::FETCH_ASSOC);
-                        foreach ($modal_chapter_quizzes as $mq) {
-                            $isQuizChecked = ($quiz_filter == $mq['id']) ? 'checked' : '';
-                            $q_title = strlen($mq['question']) > 45 ? substr($mq['question'], 0, 45) . '...' : $mq['question'];
+                        $stmt_distinct_subs = $pdo->prepare("SELECT id, question, subtopic_name FROM chapter_quizzes WHERE chapter_name = ? ORDER BY id ASC");
+                        $stmt_distinct_subs->execute([$table_chapter]);
+                        $all_q_list = $stmt_distinct_subs->fetchAll(PDO::FETCH_ASSOC);
                         ?>
-                            <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer">
-                                <input type="radio" name="quiz_filter" value="<?php echo $mq['id']; ?>" <?php echo $isQuizChecked; ?>
+                        <?php foreach ($all_q_list as $q_item): 
+                            $q_label = !empty($q_item['subtopic_name']) ? $q_item['subtopic_name'] . ' (Q#' . $q_item['id'] . ')' : 'Main Topic Quiz (Q#' . $q_item['id'] . ')';
+                            $isQuizChecked = (isset($_GET['quiz_filter']) && $_GET['quiz_filter'] == $q_item['id']) ? 'checked' : '';
+                        ?>
+                            <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer pt-1">
+                                <input type="radio" name="quiz_filter" value="<?php echo $q_item['id']; ?>" <?php echo $isQuizChecked; ?>
                                     class="border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
-                                <span><?php echo htmlspecialchars($q_title); ?></span>
+                                <span><?php echo htmlspecialchars($q_label); ?></span>
                             </label>
-                        <?php } ?>
+                        <?php endforeach; ?>
                     </div>
                 </div>
 
-                <!-- 3. Status Selection -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-500 mb-1.5">Select Statuses:</label>
                     <div class="space-y-2 bg-pastel-bg/30 p-3 rounded-xl border border-blue-50">
@@ -597,7 +685,7 @@ $total_quizzes = count($chapter_quizzes);
 
                 <div class="flex justify-between items-center pt-2">
                     <a href="classroom.php?id=<?php echo $class_id; ?>"
-                       class="text-xs font-semibold text-slate-500 hover:text-slate-700 underline">
+                        class="text-xs font-semibold text-slate-500 hover:text-slate-700 underline">
                         Clear All Filters
                     </a>
                     <div class="space-x-2">

@@ -8,8 +8,10 @@ try {
     $pdo->beginTransaction();
 
     // 1. Drop existing tables for a clean setup
+// 1. Drop existing tables for a clean setup (including any old quiz answer tables)
     $pdo->exec("DROP TABLE IF EXISTS student_answers;");
     $pdo->exec("DROP TABLE IF EXISTS student_assessments;");
+    $pdo->exec("DROP TABLE IF EXISTS student_quiz_answers;"); // Clean up old table if present
     $pdo->exec("DROP TABLE IF EXISTS discussion_replies;");
     $pdo->exec("DROP TABLE IF EXISTS discussion_posts;");
     $pdo->exec("DROP TABLE IF EXISTS quiz_questions;");
@@ -159,17 +161,19 @@ try {
     // Seed Data
     // -------------------------------------------------------------------------
     
-    // Seed Teachers
     $pdo->exec("INSERT INTO teachers (id, name, email, department) VALUES 
         (1, 'Teacher Sarah', 'sarah@eduhunt.com', 'Mathematics Department');");
 
-    // Seed Classrooms linked to Teacher Sarah
     $pdo->exec("INSERT INTO classrooms (id, teacher_id, name, avg_mastery) VALUES 
         (1, 1, 'Grade 5 Mathematics - Section A', '68%'),
         (2, 1, 'Grade 5 Mathematics - Section B', '54%'),
         (3, 1, 'Grade 6 Remedial Math', '79%');");
 
-    $pdo->exec("INSERT INTO students (id, classroom_id, name, status, score) VALUES (1, 1, 'Amina Yusuf', 'Advancing', 92);");
+    $all_students = [
+        [1, 'Amina Yusuf', 'Mastering', [3, 2, 2]],
+        [1, 'Bao Nguyen', 'On Track', [3, 3, 3]],
+        [1, 'Carlos Mendez', 'Struggling', [1, 1, 1]],
+    ];
 
     $pdo->exec("INSERT INTO classroom_chapters (classroom_id, chapter_name, is_unlocked) VALUES 
         (1, 'Ancient Pyramid: Fundamentals', 1),
@@ -188,7 +192,6 @@ try {
 
     $sample_materials = [
         ["Fractions (Ch 1)", NULL, "Fractions Introduction Notes", "uploads/Fractions_Introduction_Notes.pdf"],
-        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Adding Like Fractions Guide", "uploads/Adding_Like_Fractions_Guide.pdf"],
         ["Decimals (Ch 2)", NULL, "Decimals Place Value Chart", "uploads/Decimals_Place_Value_Chart.pdf"],
         ["Percentages (Ch 3)", NULL, "Percentage Basics Workbook", "uploads/Percentage_Basics_Workbook.pdf"]
     ];
@@ -199,13 +202,21 @@ try {
     }
 
     $sample_quizzes = [
-        ["Fractions (Ch 1)", NULL, "What is 1/2 + 1/4?", "1/6", "3/4", "2/6", "2/4", "B"],
-        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Which fraction is equivalent to 2/4?", "1/3", "1/4", "1/2", "3/5", "C"],
-        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Simplify the fraction 4/8 to its lowest terms.", "1/4", "1/3", "1/2", "2/3", "C"],
-        ["Fractions (Ch 1)", "Subtopic 1.2: Unlike Fractions", "What is the least common denominator (LCD) for fractions with denominators 3 and 4?", "6", "8", "12", "16", "C"],
-        ["Fractions (Ch 1)", "Subtopic 1.3: Improper Fractions", "Convert the improper fraction 7/3 into a mixed number.", "2 1/3", "1 2/3", "3 1/2", "2 2/3", "A"],
-        ["Decimals (Ch 2)", NULL, "What is the value of the digit 5 in 3.45?", "5 ones", "5 tenths", "5 hundredths", "5 tens", "C"],
-        ["Percentages (Ch 3)", NULL, "What is 50% expressed as a decimal?", "0.05", "0.5", "5.0", "0.55", "B"]
+        // Fractions (Ch 1)
+        ["Fractions (Ch 1)", NULL, "What is 3/5 - 1/5?", "1/5", "2/5", "3/5", "4/5", "B"],
+        ["Fractions (Ch 1)", NULL, "Which of the following is a proper fraction?", "5/4", "4/3", "2/3", "7/2", "C"],
+        ["Fractions (Ch 1)", NULL, "What is 1/3 + 1/3?", "1/6", "2/6", "2/3", "3/3", "C"],
+        ["Fractions (Ch 1)", NULL, "Which fraction is greater: 1/2 or 1/4?", "1/4", "1/2", "They are equal", "Cannot be determined", "B"],
+        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "What is 2/7 + 3/7?", "5/14", "5/7", "1/7", "6/7", "B"],
+        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "What is 5/8 - 2/8?", "1/8", "2/8", "3/8", "4/8", "C"],
+
+        // Decimals (Ch 2)
+        ["Decimals (Ch 2)", NULL, "What is 0.4 converted to a fraction in simplest form?", "2/5", "4/10", "1/4", "4/5", "A"],
+        ["Decimals (Ch 2)", "Subtopic 2.1: Tenths", "What is the value of the digit 5 in 3.45?", "5 ones", "5 tenths", "5 hundredths", "5 tens", "C"],
+
+        // Percentages (Ch 3)
+        ["Percentages (Ch 3)", NULL, "What is 50% expressed as a decimal?", "0.05", "0.5", "5.0", "0.55", "B"],
+        ["Percentages (Ch 3)", "Subtopic 3.1: Basics", "What is 25% as a fraction in lowest terms?", "1/4", "1/2", "3/4", "1/5", "A"]
     ];
 
     $stmt_q = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, subtopic_name, question, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -329,7 +340,7 @@ try {
     ]);
 
     $pdo->exec("INSERT INTO announcements (title, content, is_active) VALUES 
-        ('📢 Additional Math Support Class', 'Teacher Sarah has added an extra online tutoring session this Thursday at 3:00 PM for Fractions and Decimals review. Attendance is optional but encouraged!', 1);");
+        ('📢 Additional Math Support Class', 'Teacher Sarah has added an extra online tutoring session this Thursday at 3:00 PM for review.', 1);");
 
     $pdo->commit();
 } catch (Exception $e) {
