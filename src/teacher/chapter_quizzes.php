@@ -9,7 +9,6 @@ if (empty($chapter_name)) {
     die("Chapter not specified.");
 }
 
-// Fetch all quiz questions for this chapter[cite: 1]
 $stmt_quizzes = $pdo->prepare("SELECT * FROM chapter_quizzes WHERE chapter_name = ? ORDER BY id DESC");
 $stmt_quizzes->execute([$chapter_name]);
 $quizzes = $stmt_quizzes->fetchAll(PDO::FETCH_ASSOC);

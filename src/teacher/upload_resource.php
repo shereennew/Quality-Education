@@ -122,8 +122,7 @@ $resources = $stmt_res->fetchAll(PDO::FETCH_ASSOC);
         <!-- Upload Form -->
         <div class="bg-pastel-card rounded-2xl shadow-sm border border-blue-100 p-8 space-y-6">
             <div>
-                <h3 class="text-base font-bold text-pastel-text mb-1">Upload Remedial Resource</h3>
-                <p class="text-xs text-slate-500">Provide customized learning files or worksheets specifically for this student.</p>
+                <h3 class="text-base font-bold text-pastel-text mb-1">Upload Materials</h3>
             </div>
 
             <form action="upload.php?student_id=<?php echo $student_id; ?>" method="POST" enctype="multipart/form-data" class="space-y-6">
@@ -139,7 +138,7 @@ $resources = $stmt_res->fetchAll(PDO::FETCH_ASSOC);
 
                 <div class="flex justify-center pt-2">
                     <button type="submit" class="bg-pastel-primary hover:bg-pastel-hover text-white font-medium px-8 py-2.5 rounded-xl text-center transition shadow-sm text-sm">
-                        Upload Remedial Material
+                        Upload Materials
                     </button>
                 </div>
             </form>
