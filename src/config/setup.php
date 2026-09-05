@@ -51,22 +51,38 @@ try {
         FOREIGN KEY(classroom_id) REFERENCES classrooms(id) ON DELETE SET NULL
     );");
 
-    $pdo->exec("CREATE TABLE student_progress (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        student_id INTEGER NOT NULL, 
-        island_id INTEGER NOT NULL, 
-        chapter_name TEXT NOT NULL, 
-        status TEXT NOT NULL DEFAULT 'In Progress', 
-        FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
-    );");
+$pdo->exec("CREATE TABLE student_progress (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+    student_id INTEGER NOT NULL, 
+    island_id INTEGER NOT NULL, 
+    chapter_name TEXT NOT NULL, 
+    status TEXT NOT NULL DEFAULT 'In Progress', 
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
+);");
 
-    $pdo->exec("CREATE TABLE announcements (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        title TEXT NOT NULL, 
-        content TEXT NOT NULL, 
-        is_active INTEGER DEFAULT 1, 
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );");
+$pdo->exec("CREATE TABLE student_assessments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL,
+    island_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL,
+    score TEXT NOT NULL,
+    status TEXT NOT NULL,
+    submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
+);");
+
+$pdo->exec("CREATE TABLE student_answers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    assessment_id INTEGER NOT NULL,
+    question_text TEXT NOT NULL,
+    student_answer TEXT NOT NULL,
+    correct_answer TEXT NOT NULL,
+    is_correct INTEGER NOT NULL,
+    explanation TEXT NOT NULL,
+    FOREIGN KEY(assessment_id) REFERENCES student_assessments(id) ON DELETE CASCADE
+);");
+
 
     $pdo->exec("CREATE TABLE classroom_chapters (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -126,6 +142,21 @@ try {
         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
     );");
 
+
+function seedAssessmentAnswers($pdo, $assessment_id, $data) {
+        $stmt = $pdo->prepare("INSERT INTO student_answers (assessment_id, question_text, student_answer, correct_answer, is_correct, explanation) VALUES (?, ?, ?, ?, ?, ?)");
+        foreach ($data as $q) {
+            $stmt->execute([$assessment_id, $q[0], $q[1], $q[2], $q[3], $q[4]]);
+        }
+    }
+
+    function seedChapterQuizBank($pdo, $chapter_name, $questions) {
+        $stmt = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, question, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        foreach ($questions as $q) {
+            $stmt->execute([$chapter_name, $q[0], $q[1], $q[2], $q[3], $q[4], $q[5]]);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Seed Data
     // -------------------------------------------------------------------------
@@ -141,7 +172,6 @@ try {
         (3, 1, 'Grade 6 Remedial Math', '79%');");
 
     // 3. Class, Student, and Classroom Chapters setup (Explicitly set to Unlocked = 1)
-    $pdo->exec("INSERT INTO classrooms (id, name, avg_mastery) VALUES (1, 'Grade 5 Mathematics - Section A', '78%');");
     $pdo->exec("INSERT INTO students (id, classroom_id, name, status, score) VALUES (1, 1, 'Amina Yusuf', 'Advancing', 92);");
 
     $pdo->exec("INSERT INTO classroom_chapters (classroom_id, chapter_name, is_unlocked) VALUES 
@@ -161,22 +191,8 @@ try {
         (2, 1, 2, 'Chapter 2 Standard Test: Equivalent Fractions', 'Test', '12/15', 'Mastered', '2026-03-02 11:30:00'),
         (3, 1, 3, 'Chapter 3 Standard Test: Mixed Numbers & Decimals', 'Test', '14/15', 'Mastered', '2026-03-03 14:00:00');");
 
-    // 6. Helpers for Data Ingestion
-    $stmt_a = $pdo->prepare("INSERT INTO student_answers (assessment_id, question_text, student_answer, correct_answer, is_correct, explanation) VALUES (?, ?, ?, ?, ?, ?)");
     
-    function seedAssessmentAnswers($stmt_a, $assessment_id, $data) {
-        foreach ($data as $q) {
-            $stmt_a->execute([$assessment_id, $q[0], $q[1], $q[2], $q[3], $q[4]]);
-        }
-    }
 
-    $stmt_cq = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, question, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?)");
-
-    function seedChapterQuizBank($stmt_cq, $chapter_name, $questions) {
-        foreach ($questions as $q) {
-            $stmt_cq->execute([$chapter_name, $q[0], $q[1], $q[2], $q[3], $q[4], $q[5]]);
-        }
-    }
 
     $sample_materials = [
         ["Fractions (Ch 1)", NULL, "Fractions Introduction Notes", "uploads/Fractions_Introduction_Notes.pdf"],
@@ -185,7 +201,6 @@ try {
         ["Percentages (Ch 3)", NULL, "Percentage Basics Workbook", "uploads/Percentage_Basics_Workbook.pdf"]
     ];
 
-    $stmt_mat = $pdo->prepare("INSERT INTO chapter_materials (chapter_name, subtopic_name, title, file_path) VALUES (?, ?, ?, ?)");
     foreach ($sample_materials as $mat) {
         $stmt_mat->execute([$mat[0], $mat[1], $mat[2], $mat[3]]);
     }
@@ -210,7 +225,7 @@ try {
         (1, 'How do I simplify 12/16 to its lowest terms?', 'I know I need to divide numerator and denominator by the highest common factor, but I am stuck.');");
 
     // Chapter 1 Test (Island 1: 13/15 Score - Demonstrates Standard Proficiency)
-    seedAssessmentAnswers($stmt_a, 1, [
+    seedAssessmentAnswers($pdo, 1, [
         ['What is 1/5 + 2/5?', '3/5', '3/5', 1, 'Add numerators directly when denominators are identical.'],
         ['What is 3/4 + 2/4?', '5/8', '5/4 or 1 1/4', 0, 'Keep denominator as 4 when adding common fractions.'],
         ['What is 7/10 - 3/10?', '4/10', '4/10', 1, 'Subtract numerators: 7 - 3 = 4.'],
@@ -229,7 +244,7 @@ try {
     ]);
 
     // Chapter 2 Test (Island 2: 12/15 Score - Demonstrates Standard Proficiency)
-    seedAssessmentAnswers($stmt_a, 2, [
+    seedAssessmentAnswers($pdo, 2, [
         ['Simplify 6/8 to lowest terms.', '3/6', '3/4', 0, 'Divide top and bottom by greatest common divisor (2).'],
         ['Simplify 5/10 to lowest terms.', '1/2', '1/2', 1, 'Divide numerator and denominator by 5.'],
         ['Which fraction is equivalent to 1/3?', '2/6', '2/6', 1, 'Multiply numerator and denominator by 2.'],
@@ -248,7 +263,7 @@ try {
     ]);
 
     // Chapter 3 Test (Island 3: 14/15 Score - Demonstrates Standard Mastery)
-    seedAssessmentAnswers($stmt_a, 3, [
+    seedAssessmentAnswers($pdo,1, [
         ['Convert 7/3 to a mixed number.', '2 1/3', '2 1/3', 1, '7 divided by 3 equals 2 remainder 1.'],
         ['Convert 3 1/2 to an improper fraction.', '7/2', '7/2', 1, '(3 * 2) + 1 = 7 over denominator 2.'],
         ['Calculate 1/3 + 1/4.', '7/12', '7/12', 1, 'Find common denominator (12): 4/12 + 3/12 = 7/12.'],
@@ -270,7 +285,7 @@ try {
     // CHAPTER QUIZ BANK SEEDING (15 Standard Level Questions per Chapter)
     // -------------------------------------------------------------
 
-    seedChapterQuizBank($stmt_cq, 'Ancient Pyramid: Fundamentals', [
+    seedChapterQuizBank($pdo, 'Ancient Pyramid: Fundamentals', [
         ['What is 1/5 + 2/5?', '2/5', '3/5', '4/5', '3/10', 'B'],
         ['What is 3/4 + 2/4?', '5/4', '5/8', '1/4', '6/4', 'A'],
         ['What is 7/10 - 3/10?', '4/10', '4/0', '10/10', '3/10', 'A'],
@@ -288,7 +303,7 @@ try {
         ['What is 3/6 + 2/6?', '5/12', '5/6', '1/6', '6/6', 'B']
     ]);
 
-    seedChapterQuizBank($stmt_cq, 'Cherry Blossom: Multiplications', [
+    seedChapterQuizBank($pdo, 'Cherry Blossom: Multiplications', [
         ['Simplify 6/8 to lowest terms.', '3/4', '3/6', '2/4', '6/4', 'A'],
         ['Simplify 5/10 to lowest terms.', '1/5', '2/5', '1/2', '5/2', 'C'],
         ['Which fraction is equivalent to 1/3?', '2/3', '2/6', '3/6', '1/6', 'B'],
@@ -306,7 +321,7 @@ try {
         ['Which is equal to 1 whole?', '1/2', '3/4', '4/4', '5/4', 'C']
     ]);
 
-    seedChapterQuizBank($stmt_cq, 'Volcanic Jungle: Fractions & Decimals', [
+    seedChapterQuizBank($pdo, 'Volcanic Jungle: Fractions & Decimals', [
         ['Convert 7/3 to a mixed number.', '2 1/3', '3 1/2', '1 4/3', '2 2/3', 'A'],
         ['Convert 3 1/2 to an improper fraction.', '6/2', '7/2', '5/2', '7/1', 'B'],
         ['Calculate 1/3 + 1/4.', '2/7', '7/12', '1/12', '2/12', 'B'],
