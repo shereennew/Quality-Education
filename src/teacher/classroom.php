@@ -126,24 +126,35 @@ $stmt_max_overview->execute([$overview_chapter]);
 $overview_max_scale = max(1, $stmt_max_overview->fetchColumn());
 $overview_percentage = min(100, round(($avg_level / $overview_max_scale) * 100));
 
-// Render badge depending on whether chapter is globally unlocked and student progress
-function renderChapterBadge($level, $step_num, $is_globally_unlocked)
-{
-    if (!$is_globally_unlocked) {
-        return '<div class="w-8 h-8 mx-auto bg-slate-100 text-slate-400 font-bold text-xs rounded-lg flex items-center justify-center border border-slate-200" title="Chapter Locked by Teacher">🔒</div>';
-    }
-
-    switch ($level) {
-        case 3:
-            return '<div class="w-8 h-8 mx-auto bg-emerald-500 text-white font-bold text-xs rounded-lg flex items-center justify-center shadow-sm" title="Finished">' . $step_num . '</div>';
-        case 2:
-            return '<div class="w-8 h-8 mx-auto bg-amber-400 text-slate-900 font-bold text-xs rounded-lg flex items-center justify-center shadow-sm" title="Half Done">' . $step_num . '</div>';
-        case 1:
-            return '<div class="w-8 h-8 mx-auto bg-rose-500 text-white font-bold text-xs rounded-lg flex items-center justify-center shadow-sm" title="In Progress">' . $step_num . '</div>';
-        default:
-            return '<div class="w-8 h-8 mx-auto bg-white text-pastel-primary font-bold text-xs rounded-lg flex items-center justify-center border border-blue-200 shadow-sm" title="Unlocked - Not Started">0</div>';
-    }
+// Filter criteria for table section
+$table_chapter = $_GET['table_chapter'] ?? $chapters[0];
+$status_filter = $_GET['status_filter'] ?? [];
+if (!is_array($status_filter)) {
+    $status_filter = $status_filter !== '' ? [$status_filter] : [];
 }
+$quiz_filter = $_GET['quiz_filter'] ?? '';
+
+// Calculate total active filter count for badge display
+$active_filter_count = count($status_filter) + (!empty($quiz_filter) ? 1 : 0) + (!empty($table_chapter) && $table_chapter !== $chapters[0] ? 1 : 0);
+
+// Filter students array based on status checkboxes
+$filtered_students = array_filter($students, function($student) use ($status_filter) {
+    if (!empty($status_filter) && !in_array($student['status'], $status_filter)) {
+        return false;
+    }
+    return true;
+});
+
+// Fetch strictly ONE quiz column (either the specific filtered quiz or chapter's first default quiz)
+if (!empty($quiz_filter)) {
+    $stmt_quizzes = $pdo->prepare("SELECT id, question FROM chapter_quizzes WHERE id = ?");
+    $stmt_quizzes->execute([$quiz_filter]);
+} else {
+    $stmt_quizzes = $pdo->prepare("SELECT id, question FROM chapter_quizzes WHERE chapter_name = ? ORDER BY id ASC LIMIT 1");
+    $stmt_quizzes->execute([$table_chapter]);
+}
+$chapter_quizzes = $stmt_quizzes->fetchAll(PDO::FETCH_ASSOC);
+$total_quizzes = count($chapter_quizzes);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -195,7 +206,7 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
         <section class="bg-pastel-card rounded-2xl shadow-sm border border-blue-100 p-5">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
 
-                <!-- Circular Progress Visualizer Container (Scaled Down) -->
+                <!-- Circular Progress Visualizer Container -->
                 <div class="lg:col-span-2 space-y-3">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <div>
@@ -204,6 +215,15 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
 
                         <form method="GET" class="w-full sm:w-auto">
                             <input type="hidden" name="id" value="<?php echo $class_id; ?>">
+                            <?php if (!empty($table_chapter)): ?>
+                                <input type="hidden" name="table_chapter" value="<?php echo htmlspecialchars($table_chapter); ?>">
+                            <?php endif; ?>
+                            <?php foreach ($status_filter as $sf): ?>
+                                <input type="hidden" name="status_filter[]" value="<?php echo htmlspecialchars($sf); ?>">
+                            <?php endforeach; ?>
+                            <?php if (!empty($quiz_filter)): ?>
+                                <input type="hidden" name="quiz_filter" value="<?php echo htmlspecialchars($quiz_filter); ?>">
+                            <?php endif; ?>
                             <select name="overview_chapter" onchange="this.form.submit()"
                                 class="w-full sm:w-auto text-xs px-2.5 py-1.5 rounded-xl border border-blue-100 bg-pastel-bg/40 font-semibold text-pastel-text focus:outline-none focus:border-pastel-primary">
                                 <?php foreach ($chapters as $ch): ?>
@@ -217,7 +237,6 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
 
                     <div
                         class="flex flex-col sm:flex-row items-center justify-center gap-6 py-5 bg-pastel-bg/20 rounded-xl border border-blue-100">
-                        <!-- SVG Circular Ring (Smaller: w-40 h-40, radius 68) -->
                         <div class="relative flex items-center justify-center">
                             <svg class="w-64 h-64 transform -rotate-90">
                                 <circle cx="128" cy="128" r="108" stroke="currentColor" stroke-width="12"
@@ -244,7 +263,6 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                             </div>
                         </div>
 
-                        <!-- Metric Details Breakdown -->
                         <div class="space-y-2 text-center sm:text-left">
                             <h3 class="text-xs font-bold text-pastel-text">
                                 <?php echo htmlspecialchars($overview_chapter); ?>
@@ -266,7 +284,7 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                     </div>
                 </div>
 
-                <!-- Student Rank / Leaderboard Card (Compact) -->
+                <!-- Student Rank / Leaderboard Card -->
                 <div class="bg-pastel-bg/40 rounded-xl border border-blue-50 p-4 flex flex-col justify-between h-full">
                     <div>
                         <div class="flex justify-between items-center mb-2.5">
@@ -309,12 +327,6 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                             <?php endif; ?>
                         </div>
                     </div>
-
-                    <div class="mt-3 pt-2 border-t border-blue-100/60 text-center">
-                        <a href="students_overview.php"
-                            class="text-[11px] font-semibold text-pastel-hover hover:underline">View All Students
-                            &rarr;</a>
-                    </div>
                 </div>
 
             </div>
@@ -325,8 +337,7 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <h2 class="text-base font-bold text-pastel-text">Classroom Chapter Access Control</h2>
-                    <p class="text-xs text-slate-500 mt-0.5">Click any chapter to view its details and
-                        materials.</p>
+                    <p class="text-xs text-slate-500 mt-0.5">Click any chapter to view its details and materials.</p>
                 </div>
                 <a href="chapter_setup.php"
                     class="bg-pastel-primary hover:bg-pastel-hover text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition shadow-sm inline-flex items-center space-x-2 shrink-0">
@@ -347,7 +358,7 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                             </h3>
                             <span
                                 class="inline-block mt-2 text-xs font-semibold px-2.5 py-0.5 rounded-full <?php echo $isUnlocked ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'; ?>">
-                                <?php echo $isUnlocked ? '🔓 Unlocked' : '🔒 Locked'; ?>
+                                <?php echo $isUnlocked ? 'Unlocked' : 'Locked'; ?>
                             </span>
                         </div>
                         <a href="classroom.php?id=<?php echo $class_id; ?>&action=toggle_chapter&chapter=<?php echo urlencode($ch_name); ?>"
@@ -360,50 +371,26 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
             </div>
         </section>
 
-        <!-- Student Progress Table Section -->
+        <!-- Student Progress Table Section with Popup Filter Modal -->
         <section class="bg-pastel-card rounded-2xl shadow-sm border border-blue-100 overflow-hidden">
-            <?php
-            // Selected chapter for the student progress table dropdown
-            $table_chapter = $_GET['table_chapter'] ?? $chapters[0];
-
-            // Dynamically fetch all quizzes/steps belonging to this selected chapter
-            $stmt_quizzes = $pdo->prepare("SELECT id FROM chapter_quizzes WHERE chapter_name = ? ORDER BY id ASC");
-            $stmt_quizzes->execute([$table_chapter]);
-            $chapter_quizzes = $stmt_quizzes->fetchAll(PDO::FETCH_ASSOC);
-            $total_quizzes = count($chapter_quizzes);
-            ?>
             <div
-                class="p-6 border-b border-blue-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                class="p-6 border-b border-blue-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
-                    <h2 class="text-base font-bold text-pastel-text">Student Progress Matrix</h2>
+                    <h2 class="text-base font-bold text-pastel-text">Student Progress Matrix <span class="text-xs font-normal text-slate-400">(Current Chapter: <?php echo htmlspecialchars($table_chapter); ?>)</span></h2>
                 </div>
 
-                <div class="flex items-center space-x-3 w-full sm:w-auto">
-                    <!-- Chapter Dropdown Selector -->
-                    <form method="GET" class="flex items-center space-x-2 w-full sm:w-auto">
-                        <input type="hidden" name="id" value="<?php echo $class_id; ?>">
-                        <?php if (isset($_GET['overview_chapter'])): ?>
-                            <input type="hidden" name="overview_chapter"
-                                value="<?php echo htmlspecialchars($_GET['overview_chapter']); ?>">
-                        <?php endif; ?>
-                        <label for="table_chapter"
-                            class="text-xs font-semibold text-slate-500 shrink-0">Chapter:</label>
-                        <select name="table_chapter" id="table_chapter" onchange="this.form.submit()"
-                            class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 font-semibold text-pastel-text focus:outline-none focus:border-pastel-primary">
-                            <?php foreach ($chapters as $ch): ?>
-                                <option value="<?php echo htmlspecialchars($ch); ?>" <?php echo ($table_chapter === $ch) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($ch); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </form>
-
-                    <!-- AI Summary Trigger Button -->
-                    <button onclick="openGlobalAiSummaryModal()"
-                        class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-white hover:bg-pastel-badge font-semibold text-pastel-text transition shadow-sm flex items-center space-x-1.5 shrink-0">
-                        <span>✨ AI Summary</span>
+                <div class="flex items-center gap-3 w-full lg:w-auto justify-end">
+                    <!-- Click Filter Button Popup Trigger -->
+                    <button type="button" onclick="openFilterModal()"
+                        class="text-xs px-3.5 py-2 rounded-xl border border-blue-100 bg-white hover:bg-pastel-badge font-semibold text-pastel-text transition shadow-sm flex items-center space-x-1.5 shrink-0">
+                        <span>🔍 Filter <?php echo $active_filter_count > 0 ? '(' . $active_filter_count . ')' : ''; ?></span>
                     </button>
 
+                    <!-- AI Summary Trigger Button -->
+                    <button type="button" onclick="openGlobalAiSummaryModal()"
+                        class="text-xs px-3.5 py-2 rounded-xl border border-blue-100 bg-white hover:bg-pastel-badge font-semibold text-pastel-text transition shadow-sm flex items-center space-x-1.5 shrink-0">
+                        <span>✨ AI Summary</span>
+                    </button>
                 </div>
             </div>
 
@@ -415,25 +402,25 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                             <th class="py-3.5 px-6">Student Name</th>
                             <th class="py-3.5 px-6">Status</th>
                             <?php if ($total_quizzes > 0): ?>
-                                <?php foreach ($chapter_quizzes as $index => $quiz): ?>
-                                    <th class="py-3.5 px-6 text-center">Quiz <?php echo $index + 1; ?></th>
+                                <?php foreach ($chapter_quizzes as $quiz): ?>
+                                    <th class="py-3.5 px-6 text-center">Main Topic Quiz</th>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <th class="py-3.5 px-6 text-center">Quiz Data</th>
+                                <th class="py-3.5 px-6 text-center">Main Topic Quiz</th>
                             <?php endif; ?>
                             <th class="py-3.5 px-6 text-center">Chapter Progress</th>
                             <th class="py-3.5 px-6 text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-blue-50 text-sm">
-                        <?php foreach ($students as $student): ?>
+                        <?php foreach ($filtered_students as $student): ?>
                             <?php
-                            // Check if chapter is globally unlocked
                             $isUnlocked = $unlocked_chapters[$table_chapter] ?? 0;
-
-                            // Fetch individual student quiz answers/status for this specific chapter from database
                             $student_quiz_answers = [];
-                            $completed_quiz_count = 0;
+
+                            $stmt_max_q_count = $pdo->prepare("SELECT COUNT(*) FROM chapter_quizzes WHERE chapter_name = ?");
+                            $stmt_max_q_count->execute([$table_chapter]);
+                            $chapter_total_quiz_count = max(1, $stmt_max_q_count->fetchColumn());
 
                             if ($isUnlocked && $total_quizzes > 0) {
                                 foreach ($chapter_quizzes as $q) {
@@ -442,14 +429,17 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                                     $ans_data = $stmt_ans->fetch(PDO::FETCH_ASSOC);
 
                                     $student_quiz_answers[$q['id']] = $ans_data ? $ans_data['answer_status'] : 'Not Attempted';
-                                    if ($ans_data && ($ans_data['answer_status'] === 'Correct' || $ans_data['answer_status'] === 'Completed')) {
-                                        $completed_quiz_count++;
-                                    }
                                 }
                             }
 
-                            // Calculate chapter-specific progress percentage
-                            $chapter_percentage = ($total_quizzes > 0) ? round(($completed_quiz_count / $total_quizzes) * 100) : 0;
+                            $stmt_prog_cnt = $pdo->prepare("
+                                SELECT COUNT(DISTINCT sq.quiz_id) FROM student_quiz_answers sq 
+                                JOIN chapter_quizzes cq ON sq.quiz_id = cq.id 
+                                WHERE sq.student_id = ? AND cq.chapter_name = ? AND (sq.answer_status = 'Correct' OR sq.answer_status = 'Completed')
+                            ");
+                            $stmt_prog_cnt->execute([$student['id'], $table_chapter]);
+                            $completed_quiz_count = $stmt_prog_cnt->fetchColumn() ?: 0;
+                            $chapter_percentage = round(($completed_quiz_count / $chapter_total_quiz_count) * 100);
                             ?>
                             <tr class="hover:bg-pastel-bg/50 transition">
                                 <td class="py-4 px-6 font-medium text-pastel-text">
@@ -463,10 +453,9 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                                 </td>
 
                                 <?php if (!$isUnlocked): ?>
-                                    <!-- If chapter is locked, span across quiz columns -->
                                     <td colspan="<?php echo max(1, $total_quizzes); ?>"
                                         class="py-4 px-6 text-center text-slate-400 text-xs italic bg-slate-50/50">
-                                        🔒 Chapter Locked by Teacher
+                                        Chapter Locked by Teacher
                                     </td>
                                     <td class="py-4 px-6 text-center font-bold text-slate-400">
                                         0%
@@ -482,7 +471,7 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                                     <?php foreach ($chapter_quizzes as $q): ?>
                                         <?php $status = $student_quiz_answers[$q['id']] ?? 'Pending'; ?>
                                         <td class="py-4 px-6 text-center">
-                                            <div class="inline-flex items-center justify-center px-2.5 py-1 rounded-xl text-xs font-semibold shadow-2xs
+                                            <div class="inline-flex items-center justify-center px-3 py-1 rounded-xl text-xs font-semibold shadow-2xs
                                             <?php
                                             if ($status === 'Correct' || $status === 'Completed') {
                                                 echo 'bg-emerald-100 text-emerald-700 border border-emerald-200';
@@ -492,12 +481,11 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                                                 echo 'bg-slate-100 text-slate-500 border border-slate-200';
                                             }
                                             ?>">
-                                                <?php echo htmlspecialchars($status); ?>
+                                                Main Topic Quiz: <?php echo htmlspecialchars($status); ?>
                                             </div>
                                         </td>
                                     <?php endforeach; ?>
 
-                                    <!-- Chapter Progress Column -->
                                     <td class="py-4 px-6 text-center">
                                         <span
                                             class="inline-flex items-center justify-center px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
@@ -508,16 +496,13 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
 
                                 <td class="py-4 px-6 text-center">
                                     <div class="flex items-center justify-center space-x-2">
-
-                                        <!-- Quick Feedback Trigger Button -->
                                         <button type="button"
                                             onclick="openFeedbackModal(<?php echo $student['id']; ?>, '<?php echo htmlspecialchars($student['name'], ENT_QUOTES); ?>')"
                                             title="Give Feedback"
                                             class="px-2.5 h-8 bg-white hover:bg-pastel-badge text-pastel-text hover:text-pastel-hover border border-blue-100 rounded-lg flex items-center justify-center transition shadow-sm text-xs font-semibold">
-                                            💬 Feedback
+                                            Feedback
                                         </button>
 
-                                        <!-- Extra Resource Upload Button -->
                                         <a href="upload_resource.php?student_id=<?php echo htmlspecialchars($student['id']); ?>"
                                             title="Upload Extra Resource"
                                             class="w-8 h-8 bg-white hover:bg-pastel-badge text-pastel-text hover:text-pastel-hover border border-blue-100 rounded-lg flex items-center justify-center transition shadow-sm font-bold text-base">
@@ -525,7 +510,6 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                                         </a>
                                     </div>
                                 </td>
-
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -535,12 +519,117 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
 
     </main>
 
+    <!-- Filter Pop-up Modal Container with Chapter, Quiz, and Status Options -->
+    <div id="filterModal"
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+        <div
+            class="bg-white rounded-2xl shadow-xl border border-blue-100 max-w-md w-full overflow-hidden transform transition-all">
+            <div class="p-4 border-b border-blue-100 flex justify-between items-center bg-pastel-bg/50">
+                <h3 class="text-sm font-bold text-pastel-text">Filter Matrix Options</h3>
+                <button type="button" onclick="closeFilterModal()"
+                    class="text-slate-400 hover:text-slate-600 font-bold text-base px-2 py-1 rounded-lg">&times;</button>
+            </div>
+            <form method="GET" class="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                <input type="hidden" name="id" value="<?php echo $class_id; ?>">
+                <?php if (isset($_GET['overview_chapter'])): ?>
+                    <input type="hidden" name="overview_chapter" value="<?php echo htmlspecialchars($_GET['overview_chapter']); ?>">
+                <?php endif; ?>
+
+                <!-- 1. Chapter Selection -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1.5">Select Chapter:</label>
+                    <div class="space-y-1.5 bg-pastel-bg/30 p-3 rounded-xl border border-blue-50">
+                        <?php foreach ($chapters as $ch): 
+                            $isChapterChecked = ($table_chapter === $ch) ? 'checked' : '';
+                        ?>
+                            <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer">
+                                <input type="radio" name="table_chapter" value="<?php echo htmlspecialchars($ch); ?>" <?php echo $isChapterChecked; ?>
+                                    class="border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
+                                <span><?php echo htmlspecialchars($ch); ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
+                <!-- 2. Quiz Selection -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1.5">Select Quiz:</label>
+                    <div class="space-y-1.5 bg-pastel-bg/30 p-3 rounded-xl border border-blue-50 max-h-36 overflow-y-auto">
+                        <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer">
+                            <input type="radio" name="quiz_filter" value="" <?php echo empty($quiz_filter) ? 'checked' : ''; ?>
+                                class="border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
+                            <span>All Quizzes (First Default)</span>
+                        </label>
+                        <?php 
+                        $stmt_modal_q = $pdo->prepare("SELECT id, question FROM chapter_quizzes WHERE chapter_name = ?");
+                        $stmt_modal_q->execute([$table_chapter]);
+                        $modal_chapter_quizzes = $stmt_modal_q->fetchAll(PDO::FETCH_ASSOC);
+                        foreach ($modal_chapter_quizzes as $mq) {
+                            $isQuizChecked = ($quiz_filter == $mq['id']) ? 'checked' : '';
+                            $q_title = strlen($mq['question']) > 45 ? substr($mq['question'], 0, 45) . '...' : $mq['question'];
+                        ?>
+                            <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer">
+                                <input type="radio" name="quiz_filter" value="<?php echo $mq['id']; ?>" <?php echo $isQuizChecked; ?>
+                                    class="border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
+                                <span><?php echo htmlspecialchars($q_title); ?></span>
+                            </label>
+                        <?php } ?>
+                    </div>
+                </div>
+
+                <!-- 3. Status Selection -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1.5">Select Statuses:</label>
+                    <div class="space-y-2 bg-pastel-bg/30 p-3 rounded-xl border border-blue-50">
+                        <?php 
+                        $available_statuses = ['Mastering', 'On Track', 'Struggling'];
+                        foreach ($available_statuses as $st):
+                            $isChecked = in_array($st, $status_filter) ? 'checked' : '';
+                        ?>
+                            <label class="flex items-center space-x-2.5 text-xs font-semibold text-pastel-text cursor-pointer">
+                                <input type="checkbox" name="status_filter[]" value="<?php echo $st; ?>" <?php echo $isChecked; ?>
+                                    class="rounded border-blue-200 text-pastel-primary focus:ring-pastel-primary w-4 h-4">
+                                <span><?php echo $st; ?></span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center pt-2">
+                    <a href="classroom.php?id=<?php echo $class_id; ?>"
+                       class="text-xs font-semibold text-slate-500 hover:text-slate-700 underline">
+                        Clear All Filters
+                    </a>
+                    <div class="space-x-2">
+                        <button type="button" onclick="closeFilterModal()"
+                            class="text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Cancel</button>
+                        <button type="submit"
+                            class="text-xs font-semibold px-4 py-2 rounded-xl bg-pastel-primary text-white hover:bg-pastel-hover transition">Apply Filter</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openFilterModal() {
+            const modal = document.getElementById('filterModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeFilterModal() {
+            const modal = document.getElementById('filterModal');
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+        }
+    </script>
+
     <!-- Global AI Summary Modal Container -->
     <div id="globalAiSummaryModal"
         class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
         <div
             class="bg-white rounded-2xl shadow-xl border border-blue-100 max-w-lg w-full overflow-hidden transform transition-all">
-            <!-- Modal Header -->
             <div class="p-5 border-b border-blue-100 flex justify-between items-center bg-pastel-bg/50">
                 <div>
                     <h3 class="text-sm font-bold text-pastel-text">AI Performance Summary</h3>
@@ -551,13 +640,10 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                 </button>
             </div>
 
-            <!-- Modal Body / Parameters Form -->
             <div class="p-6 space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <!-- Target Selector -->
                     <div>
-                        <label for="aiSummaryStudent" class="block text-xs font-semibold text-slate-500 mb-1">Target
-                            Student</label>
+                        <label for="aiSummaryStudent" class="block text-xs font-semibold text-slate-500 mb-1">Target Student</label>
                         <select id="aiSummaryStudent"
                             class="w-full text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 font-semibold text-pastel-text focus:outline-none focus:border-pastel-primary">
                             <option value="all">All Students (Class Overview)</option>
@@ -569,28 +655,22 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
                         </select>
                     </div>
 
-                    <!-- Date Selector -->
                     <div>
-                        <label for="aiSummaryDate" class="block text-xs font-semibold text-slate-500 mb-1">Benchmark
-                            Date</label>
+                        <label for="aiSummaryDate" class="block text-xs font-semibold text-slate-500 mb-1">Benchmark Date</label>
                         <input type="date" id="aiSummaryDate" value="<?php echo date('Y-m-d'); ?>"
                             class="w-full text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 font-semibold text-pastel-text focus:outline-none focus:border-pastel-primary">
                     </div>
                 </div>
 
-                <!-- Loading Spinner Container -->
                 <div id="aiSummaryLoading" class="hidden text-center py-6 text-xs text-slate-400">
                     Analyzing records and generating summary metrics...
                 </div>
 
-                <!-- Result Box -->
                 <div id="aiSummaryResultContainer"
                     class="hidden text-xs text-slate-600 leading-relaxed space-y-3 bg-pastel-bg/30 p-4 rounded-xl border border-blue-50 max-h-60 overflow-y-auto">
-                    <!-- Dynamic summary text injected via JS -->
                 </div>
             </div>
 
-            <!-- Modal Footer -->
             <div class="p-4 border-t border-blue-100 flex justify-end space-x-2 bg-pastel-bg/20">
                 <button onclick="closeGlobalAiSummaryModal()"
                     class="text-xs font-semibold px-4 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
@@ -631,7 +711,6 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
             loadingEl.classList.remove('hidden');
             resultEl.classList.add('hidden');
 
-            // Fetch dynamically from our separated backend handler
             fetch(`../tools/get_ai_summary.php?student_id=${selectedTarget}&date=${summaryDate}&classroom_id=${classroomId}`)
                 .then(response => response.text())
                 .then(data => {
@@ -691,7 +770,5 @@ function renderChapterBadge($level, $step_num, $is_globally_unlocked)
             modal.classList.add('hidden');
         }
     </script>
-
 </body>
-
 </html>

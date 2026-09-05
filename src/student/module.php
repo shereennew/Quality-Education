@@ -1,29 +1,11 @@
 <?php
-require_once __DIR__ . '/../config/db.php';
-
-
-// 1. Fetch active student details (Defaults to Amina Yusuf from setup.php)
-$student_id = 1;
-$stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
-$stmt_student->execute([$student_id]);
-$student = $stmt_student->fetch(PDO::FETCH_ASSOC);
-
-if (!$student) {
-    // Fallback if db isn't seeded yet
-    $student = ['name' => 'Amina Yusuf', 'score' => 92, 'status' => 'Advancing'];
-}
-
-// 2. Fetch all chapters & their unlock status for current student
-$stmt_chapters = $pdo->prepare("
-    SELECT c.id, c.chapter_name, c.is_unlocked, 
-           COALESCE(sp.status, 'Locked') AS progress_status
-    FROM classroom_chapters c
-    LEFT JOIN student_progress sp 
-        ON c.chapter_name = sp.chapter_name AND sp.student_id = ?
-    ORDER BY c.id ASC
-");
-$stmt_chapters->execute([$student_id]);
-$raw_chapters = $stmt_chapters->fetchAll(PDO::FETCH_ASSOC);
+<<<<<<<<< Temporary merge branch 1
+// Mock student data for UI prototyping
+$student = [
+    'name' => 'Aina',
+    'level' => 4,
+    'xp' => 320
+];
 
 // Map database schema to rich structured content for the UI
 $chapter_knowledge_base = [
@@ -53,19 +35,70 @@ $chapter_knowledge_base = [
             '1.2' => [
                 'title' => 'Subtracting Like Fractions',
                 'badge_color' => 'bg-blue-100 text-blue-700',
-                'status' => 'Completed',
+                'status' => 'In Progress',
                 'notes' => [
-                    'overview' => 'Subtracting like fractions requires taking away the second numerator from the first while maintaining the original denominator.',
+                    'overview' => 'Adding and subtracting large numbers by aligning digits according to their place values.',
                     'points' => [
-                        'Ensure denominators match.',
-                        'Subtract the numerators: $a/c - b/c = (a-b)/c$.',
-                        'Simplify to lowest terms.'
+                        'Always align numbers vertically by place value before calculating.',
+                        'Carry over numbers carefully during addition.',
+                        'Borrow correctly from neighboring columns during subtraction.'
                     ],
-                    'example' => 'Calculate: $\\frac{7}{10} - \\frac{3}{10}$ <br><span class="text-pastel-primary font-bold">Answer: $\\frac{4}{10} = \\frac{2}{5}$</span>'
+                    'example' => 'Calculate: $45,210 + 12,345$ <br><span class="text-pastel-primary font-bold">Answer: 57,555</span>'
                 ],
                 'questions' => [
-                    ['id' => 3, 'diff' => 'Easy', 'title' => 'What is $\\frac{7}{10} - \\frac{3}{10}$?'],
-                    ['id' => 4, 'diff' => 'Medium', 'title' => 'What is $\\frac{9}{12} - \\frac{4}{12}$?']
+                    ['id' => 103, 'diff' => 'Easy', 'title' => 'Solve 5-digit addition with regrouping'],
+                    ['id' => 104, 'diff' => 'Hard', 'title' => 'Word problem involving mixed addition and subtraction']
+=========
+$student_name = "Alex Tan";
+$active_tab = $_GET['page'] ?? 'module';
+
+// Nav Bar Items (Identical to student_dashboard.php)
+$nav_items = [
+    'home'        => ['label' => 'Home',        'url' => 'student_dashboard.php'],
+    'module'      => ['label' => 'Modules',     'url' => 'module.php'],
+    'quiz'        => ['label' => 'Quizzes',     'url' => 'quiz.php'],
+    'math_helper' => ['label' => 'Math Helper', 'url' => 'math_helper.php']
+];
+
+// All available chapters data structure
+$chapters = [
+    3 => [
+        'title' => 'Chapter 3: Fraction Mountain',
+        'topic' => 'Equivalent Fractions & Simplifying',
+        'subtopics' => [
+            '3.1' => [
+                'title' => '3.1 Equivalent Fractions',
+                'status' => 'Completed',
+                'badge_color' => 'bg-emerald-100 text-emerald-700',
+                'notes' => [
+                    'overview' => 'Fractions that have different numerators and denominators but equal value.',
+                    'points' => [
+                        'Multiply or divide top and bottom by the same non-zero number.',
+                        'The value of the fraction remains unchanged.'
+                    ],
+                    'example' => '$$\frac{1}{2} = \frac{2}{4} = \frac{4}{8}$$'
+                ],
+                'questions' => [
+                    ['id' => 301, 'title' => 'Q1: Find equivalent fraction for 3/4 with denominator 8', 'diff' => 'Foundation'],
+                    ['id' => 302, 'title' => 'Q2: Are 2/5 and 6/15 equivalent?', 'diff' => 'Intermediate']
+                ]
+            ],
+            '3.2' => [
+                'title' => '3.2 Simplifying Fractions',
+                'status' => 'Completed',
+                'badge_color' => 'bg-emerald-100 text-emerald-700',
+                'notes' => [
+                    'overview' => 'Divide both numerator and denominator by their Highest Common Factor (HCF).',
+                    'points' => [
+                        'Find the largest number that divides both numbers evenly.',
+                        'A fraction is in simplest form when HCF is 1.'
+                    ],
+                    'example' => '$$\frac{6}{12} = \frac{6 \div 6}{12 \div 6} = \frac{1}{2}$$'
+                ],
+                'questions' => [
+                    ['id' => 303, 'title' => 'Q1: Simplify 8/12', 'diff' => 'Foundation'],
+                    ['id' => 304, 'title' => 'Q2: Simplify 15/45 to lowest terms', 'diff' => 'Intermediate']
+>>>>>>>>> Temporary merge branch 2
                 ]
             ]
         ]
@@ -77,71 +110,122 @@ $chapter_knowledge_base = [
             '2.1' => [
                 'title' => 'Simplifying Fractions',
                 'badge_color' => 'bg-amber-100 text-amber-700',
-                'status' => 'Completed',
+                'status' => 'Locked',
                 'notes' => [
-                    'overview' => 'Simplifying or reducing a fraction means dividing both the numerator and denominator by their Greatest Common Divisor (GCD).',
+                    'overview' => 'Fractions that represent the same proportion of the whole even though their numerators and denominators differ.',
                     'points' => [
-                        'Find common factors for both numerator and denominator.',
-                        'Divide both numbers by their highest common factor.',
-                        'A fraction is in simplest form when its GCD is 1.'
+                        'Multiply or divide numerator and denominator by the same non-zero number.',
+                        'Simplify fractions to their lowest terms.'
                     ],
-                    'example' => 'Simplify $\\frac{6}{8}$ to lowest terms. <br><span class="text-pastel-primary font-bold">Answer: $\\frac{3}{4}$ (Divided by 2)</span>'
+                    'example' => 'Find an equivalent fraction for $\frac{2}{3}$ with denominator $6$. <br><span class="text-pastel-primary font-bold">Answer: $\frac{4}{6}$</span>'
                 ],
                 'questions' => [
-                    ['id' => 5, 'diff' => 'Easy', 'title' => 'Simplify $\\frac{6}{8}$ to lowest terms.'],
-                    ['id' => 6, 'diff' => 'Medium', 'title' => 'Simplify $\\frac{10}{15}$ to lowest terms.']
+                    ['id' => 201, 'diff' => 'Easy', 'title' => 'Simplify fractions to lowest terms']
+=========
+    4 => [
+        'title' => 'Chapter 4: Waterfall Forest',
+        'topic' => 'Adding & Subtracting Unlike Fractions',
+        'subtopics' => [
+            '4.1' => [
+                'title' => '4.1 Finding Common Denominators',
+                'status' => 'Completed',
+                'badge_color' => 'bg-emerald-100 text-emerald-700',
+                'notes' => [
+                    'overview' => 'Before adding or subtracting unlike fractions, find a common denominator using Least Common Multiples (LCM).',
+                    'points' => [
+                        'List multiples for both denominators until you find a match.',
+                        'Multiply both top and bottom by the same factor.'
+                    ],
+                    'example' => '$$\frac{1}{2} = \frac{1 \times 3}{2 \times 3} = \frac{3}{6}$$'
+                ],
+                'questions' => [
+                    ['id' => 401, 'title' => 'Q1: Find LCM of 3 and 4', 'diff' => 'Foundation'],
+                    ['id' => 402, 'title' => 'Q2: Convert 2/3 to denominator 12', 'diff' => 'Intermediate']
+                ]
+            ],
+            '4.2' => [
+                'title' => '4.2 Adding Unlike Fractions',
+                'status' => 'In Progress',
+                'badge_color' => 'bg-blue-100 text-blue-700',
+                'notes' => [
+                    'overview' => 'Convert denominators to be identical, add only the numerators, and simplify the fraction.',
+                    'points' => [
+                        'Keep the common denominator the same.',
+                        'Add top numbers together: $a/c + b/c = (a+b)/c$.'
+                    ],
+                    'example' => '$$\frac{1}{3} + \frac{1}{6} = \frac{2}{6} + \frac{1}{6} = \frac{3}{6} = \frac{1}{2}$$'
+                ],
+                'questions' => [
+                    ['id' => 403, 'title' => 'Q1: Solve 1/4 + 1/2', 'diff' => 'Foundation'],
+                    ['id' => 404, 'title' => 'Q2: Solve 2/5 + 1/3', 'diff' => 'Intermediate'],
+                    ['id' => 405, 'title' => 'Q3: Solve 3/8 + 1/4 and simplify', 'diff' => 'Master']
+                ]
+            ],
+            '4.3' => [
+                'title' => '4.3 Subtracting Unlike Fractions',
+                'status' => 'Locked',
+                'badge_color' => 'bg-slate-100 text-slate-500',
+                'notes' => [
+                    'overview' => 'Equalize denominators first, then subtract the numerators.',
+                    'points' => [
+                        'Subtract top numbers only.',
+                        'Simplify the resulting fraction if needed.'
+                    ],
+                    'example' => '$$\frac{3}{4} - \frac{1}{2} = \frac{3}{4} - \frac{2}{4} = \frac{1}{4}$$'
+                ],
+                'questions' => [
+                    ['id' => 406, 'title' => 'Q1: Solve 3/4 - 1/4', 'diff' => 'Foundation'],
+                    ['id' => 407, 'title' => 'Q2: Solve 5/6 - 1/3', 'diff' => 'Intermediate']
                 ]
             ]
         ]
     ],
-    3 => [
-        'title' => 'Volcanic Jungle: Fractions & Decimals',
-        'topic' => 'Mixed Numbers & Basic Operations',
+    5 => [
+        'title' => 'Chapter 5: Mixed Number Valley',
+        'topic' => 'Multiplying Fractions & Mixed Numbers',
         'subtopics' => [
-            '3.1' => [
-                'title' => 'Improper Fractions & Mixed Numbers',
-                'badge_color' => 'bg-purple-100 text-purple-700',
-                'status' => 'Completed',
+            '5.1' => [
+                'title' => '5.1 Converting Improper Fractions',
+                'status' => 'Locked',
+                'badge_color' => 'bg-slate-100 text-slate-500',
                 'notes' => [
-                    'overview' => 'An improper fraction has a numerator greater than or equal to its denominator. A mixed number combines a whole number and a proper fraction.',
+                    'overview' => 'Convert mixed numbers into improper fractions before multiplying.',
                     'points' => [
-                        'To convert improper to mixed: Divide numerator by denominator.',
-                        'The quotient becomes the whole number, the remainder becomes the new numerator.',
-                        'To convert mixed to improper: $\\text{Whole} \\times \\text{Denominator} + \\text{Numerator}$.'
+                        'Multiply whole number by denominator.',
+                        'Add numerator to the result.'
                     ],
-                    'example' => 'Convert $\\frac{7}{3}$ to a mixed number. <br><span class="text-pastel-primary font-bold">Answer: $2\\frac{1}{3}$</span>'
+                    'example' => '$$2 \frac{1}{3} = \frac{(2 \times 3) + 1}{3} = \frac{7}{3}$$'
                 ],
                 'questions' => [
-                    ['id' => 7, 'diff' => 'Medium', 'title' => 'Convert $\\frac{7}{3}$ to a mixed number.'],
-                    ['id' => 8, 'diff' => 'Hard', 'title' => 'Convert $3\\frac{1}{2}$ to an improper fraction.']
+                    ['id' => 501, 'title' => 'Q1: Convert 1 3/4 to improper fraction', 'diff' => 'Foundation'],
+                    ['id' => 502, 'title' => 'Q2: Convert 3 2/5 to improper fraction', 'diff' => 'Intermediate']
+                ]
+            ],
+            '5.2' => [
+                'title' => '5.2 Multiplying Fractions',
+                'status' => 'Locked',
+                'badge_color' => 'bg-slate-100 text-slate-500',
+                'notes' => [
+                    'overview' => 'Multiply top numbers together and bottom numbers together.',
+                    'points' => [
+                        'Numerator x Numerator = New Numerator.',
+                        'Denominator x Denominator = New Denominator.'
+                    ],
+                    'example' => '$$\frac{2}{3} \times \frac{4}{5} = \frac{8}{15}$$'
+                ],
+                'questions' => [
+                    ['id' => 503, 'title' => 'Q1: Solve 1/2 x 3/5', 'diff' => 'Foundation'],
+                    ['id' => 504, 'title' => 'Q2: Solve 2/3 x 9/10', 'diff' => 'Intermediate']
+>>>>>>>>> Temporary merge branch 2
                 ]
             ]
         ]
     ]
 ];
 
-// Combine DB unlocked status with knowledge base content
-$chapters = [];
-foreach ($raw_chapters as $index => $row) {
-    $c_id = $row['id'];
-    if (isset($chapter_knowledge_base[$c_id])) {
-        $chapters[$c_id] = $chapter_knowledge_base[$c_id];
-        $chapters[$c_id]['is_unlocked'] = (int)$row['is_unlocked'];
-        $chapters[$c_id]['progress_status'] = $row['progress_status'];
-    }
-}
-
-// Fallback if DB is empty
-if (empty($chapters)) {
-    $chapters = $chapter_knowledge_base;
-    foreach ($chapters as $k => $v) {
-        $chapters[$k]['is_unlocked'] = 1;
-        $chapters[$k]['progress_status'] = 'Completed';
-    }
-}
-
-// Selected Chapter Logic
-$selected_chap_id = isset($_GET['chap']) && isset($chapters[$_GET['chap']]) ? (int)$_GET['chap'] : array_key_first($chapters);
+<<<<<<<<< Temporary merge branch 1
+// Handle chapter selection from URL query parameters safely
+$selected_chap_id = isset($_GET['chap']) && isset($chapters[$_GET['chap']]) ? (int)$_GET['chap'] : 1;
 $active_chapter = $chapters[$selected_chap_id];
 
 // Subtopic keys
@@ -153,8 +237,15 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eduhunt - Learning Modules</title>
+<<<<<<<<< Temporary merge branch 1
+    <title>Eduhunt - Modules</title>
     <script src="https://cdn.tailwindcss.com"></script>
+=========
+    <title>Module View - <?= htmlspecialchars($student_name) ?></title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MathJax for rendering equations correctly -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
+>>>>>>>>> Temporary merge branch 2
     <script>
         tailwind.config = {
             theme: {
@@ -174,7 +265,7 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
             }
         }
     </script>
-    <!-- Flowbite CSS -->
+<<<<<<<<< Temporary merge branch 1
     <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.css" rel="stylesheet" />
     
     <!-- MathJax for rendering Mathematical Expressions -->
@@ -257,6 +348,70 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
                     </ul>
                 </div>
             </div>
+        </div>
+
+        <!-- MOBILE MENU -->
+        <div class="hidden w-full md:hidden px-5 pb-5 absolute top-24 left-0 bg-pastel-nav border-b-2 border-pastel-primary/20 shadow-lg" id="navbar-user">
+            <ul class="flex flex-col gap-2 text-lg font-bold bg-pastel-card p-4 rounded-2xl border-2 border-pastel-nav shadow-sm">
+                <li><a href="index.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Home</a></li>
+                <li><a href="discussion.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Discussion</a></li>
+                <li><a href="module.php" class="block py-4 px-5 text-white bg-pastel-primary rounded-xl shadow-sm">Modules</a></li>
+                <li><a href="quiz.php" class="block py-4 px-5 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors">Quizzes</a></li>
+            </ul>
+=========
+</head>
+<body class="bg-pastel-bg text-pastel-text font-sans min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar (Matches Dashboard 1:1) -->
+    <nav class="bg-pastel-nav shadow-sm border-b border-blue-100 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                
+                <!-- Leftmost: Student Avatar & Name -->
+                <div class="flex items-center space-x-3 pr-4 border-r border-blue-200">
+                    <div class="w-9 h-9 rounded-full bg-pastel-primary text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                        <?= strtoupper(substr($student_name, 0, 1)) ?>
+                    </div>
+                    <span class="font-semibold text-pastel-text text-base whitespace-nowrap">
+                        <?= htmlspecialchars($student_name) ?>
+                    </span>
+                </div>
+
+                <!-- Center Navigation Items (Text Only) -->
+                <div class="flex space-x-2">
+                    <?php foreach ($nav_items as $key => $item): ?>
+                        <a href="<?= $item['url'] ?>" 
+                           class="px-4 py-2 rounded-lg text-sm font-semibold transition <?= $key === $active_tab ? 'bg-pastel-primary text-white shadow-sm' : 'text-pastel-text hover:bg-white/60' ?>">
+                            <?= $item['label'] ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- Right: Utility Tools & Grade Tag (Text Only) -->
+                <div class="flex items-center space-x-3">
+                    
+                    <!-- Read-Aloud Tool Button -->
+                    <button type="button" 
+                            title="Read Aloud"
+                            class="px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white text-slate-600 hover:text-pastel-hover text-xs border border-blue-100 transition shadow-sm font-medium">
+                        Read Aloud
+                    </button>
+
+                    <!-- Digital Scratchpad Tool Button -->
+                    <button type="button" 
+                            title="Scratchpad"
+                            class="px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white text-slate-600 hover:text-pastel-hover text-xs border border-blue-100 transition shadow-sm font-medium">
+                        Scratchpad
+                    </button>
+
+                    <!-- Grade Tag -->
+                    <span class="text-xs bg-pastel-badge text-pastel-hover font-semibold px-3 py-1.5 rounded-full whitespace-nowrap">
+                        Year 4 Math
+                    </span>
+                </div>
+
+            </div>
+>>>>>>>>> Temporary merge branch 2
         </div>
     </nav>
 
@@ -365,7 +520,8 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
 
     </main>
 
-    <!-- FLOWBITE & JS CONTROLLERS -->
+    <!-- JS State Management -->
+<<<<<<<<< Temporary merge branch 1
     <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js"></script>
     <script>
         const subtopicData = <?= json_encode($active_chapter['subtopics']) ?>;
@@ -446,31 +602,41 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
                 questionsList.appendChild(qAnchor);
             });
 
+            // Trigger MathJax re-render if loaded
+            if (window.MathJax) {
+                MathJax.typeset();
+            }
+        }
+
+        // Initial render on load
+=========
+            // Render Lessons Questions
+            const qList = document.getElementById('questions-list');
+            qList.innerHTML = '';
+            data.questions.forEach(q => {
+                const card = document.createElement('div');
+                card.className = "p-4 border border-slate-100 rounded-xl bg-pastel-bg flex justify-between items-center";
+                card.innerHTML = `
+                    <div>
+                        <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-pastel-hover">${q.diff}</span>
+                        <h4 class="font-semibold text-sm text-slate-700 mt-1">${q.title}</h4>
+                    </div>
+                    <a href="quiz.php?q=${q.id}" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-4 py-2 rounded-lg transition shadow-sm">
+                        Jump to Question →
+                    </a>
+                `;
+                qList.appendChild(card);
+            });
+
             // Re-render LaTeX expressions with MathJax
             if (window.MathJax && window.MathJax.typesetPromise) {
                 MathJax.typesetPromise();
             }
         }
 
-        // Live Search Filter for Subtopics
-        function filterSubtopics() {
-            const query = document.getElementById('search-input').value.toLowerCase();
-            const buttons = document.querySelectorAll('.subtopic-btn');
-
-            buttons.forEach(btn => {
-                const title = btn.getAttribute('data-title');
-                if (title.includes(query)) {
-                    btn.classList.remove('hidden');
-                } else {
-                    btn.classList.add('hidden');
-                }
-            });
-        }
-
-        // Initialize content on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            renderContent();
-        });
+        // Initial Load
+>>>>>>>>> Temporary merge branch 2
+        renderContent();
     </script>
 </body>
 </html>

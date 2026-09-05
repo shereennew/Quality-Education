@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__ . '/db.php';
 
+$status = 'success';
+$error_msg = '';
+
 try {
     $pdo->beginTransaction();
 
@@ -9,19 +12,33 @@ try {
     $pdo->exec("DROP TABLE IF EXISTS student_assessments;");
     $pdo->exec("DROP TABLE IF EXISTS discussion_replies;");
     $pdo->exec("DROP TABLE IF EXISTS discussion_posts;");
+    $pdo->exec("DROP TABLE IF EXISTS quiz_questions;"); // Updated table name if applicable or keeping chapter_quizzes
     $pdo->exec("DROP TABLE IF EXISTS chapter_quizzes;");
     $pdo->exec("DROP TABLE IF EXISTS chapter_materials;");
     $pdo->exec("DROP TABLE IF EXISTS classroom_chapters;");
     $pdo->exec("DROP TABLE IF EXISTS student_progress;");
     $pdo->exec("DROP TABLE IF EXISTS students;");
+    $pdo->exec("DROP TABLE IF EXISTS teachers;");
     $pdo->exec("DROP TABLE IF EXISTS classrooms;");
     $pdo->exec("DROP TABLE IF EXISTS announcements;");
 
-    // 2. Schema definitions
+    // -------------------------------------------------------------------------
+    // Create Schema
+    // -------------------------------------------------------------------------
+    $pdo->exec("CREATE TABLE teachers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        department TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );");
+
     $pdo->exec("CREATE TABLE classrooms (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        name TEXT NOT NULL, 
-        avg_mastery TEXT NOT NULL
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        teacher_id INTEGER,
+        name TEXT NOT NULL,
+        avg_mastery TEXT NOT NULL,
+        FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
     );");
 
     $pdo->exec("CREATE TABLE students (
@@ -60,66 +77,68 @@ try {
     );");
 
     $pdo->exec("CREATE TABLE chapter_materials (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        chapter_name TEXT NOT NULL, 
-        file_name TEXT NOT NULL, 
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chapter_name TEXT NOT NULL,
+        subtopic_name TEXT DEFAULT NULL,
+        title TEXT NOT NULL,
+        file_path TEXT DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );");
 
     $pdo->exec("CREATE TABLE chapter_quizzes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        chapter_name TEXT NOT NULL, 
-        question TEXT NOT NULL, 
-        option_a TEXT NOT NULL, 
-        option_b TEXT NOT NULL, 
-        option_c TEXT NOT NULL, 
-        option_d TEXT NOT NULL, 
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chapter_name TEXT NOT NULL,
+        subtopic_name TEXT DEFAULT NULL,
+        question TEXT NOT NULL,
+        option_a TEXT NOT NULL,
+        option_b TEXT NOT NULL,
+        option_c TEXT NOT NULL,
+        option_d TEXT NOT NULL,
         correct_option TEXT NOT NULL
     );");
 
+    $pdo->exec("CREATE TABLE announcements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );");
+
     $pdo->exec("CREATE TABLE discussion_posts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        student_id INTEGER NOT NULL, 
-        title TEXT NOT NULL, 
-        content TEXT NOT NULL, 
-        image_url TEXT DEFAULT NULL, 
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        image_url TEXT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
     );");
 
     $pdo->exec("CREATE TABLE discussion_replies (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        post_id INTEGER NOT NULL, 
-        student_id INTEGER NOT NULL, 
-        content TEXT NOT NULL, 
-        image_url TEXT DEFAULT NULL, 
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
-        FOREIGN KEY(post_id) REFERENCES discussion_posts(id) ON DELETE CASCADE, 
-        FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
-    );");
-
-    $pdo->exec("CREATE TABLE student_assessments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER NOT NULL,
         student_id INTEGER NOT NULL,
-        island_id INTEGER NOT NULL,
-        title TEXT NOT NULL,
-        type TEXT DEFAULT 'Quiz',
-        score TEXT NOT NULL,
-        status TEXT DEFAULT 'Mastered',
-        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        content TEXT NOT NULL,
+        image_url TEXT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(post_id) REFERENCES discussion_posts(id) ON DELETE CASCADE,
         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
     );");
 
-    $pdo->exec("CREATE TABLE student_answers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        assessment_id INTEGER NOT NULL,
-        question_text TEXT NOT NULL,
-        student_answer TEXT NOT NULL,
-        correct_answer TEXT NOT NULL,
-        is_correct INTEGER NOT NULL DEFAULT 0,
-        explanation TEXT,
-        FOREIGN KEY(assessment_id) REFERENCES student_assessments(id) ON DELETE CASCADE
-    );");
+    // -------------------------------------------------------------------------
+    // Seed Data
+    // -------------------------------------------------------------------------
+    
+    // Seed Teachers
+    $pdo->exec("INSERT INTO teachers (id, name, email, department) VALUES 
+        (1, 'Teacher Sarah', 'sarah@eduhunt.com', 'Mathematics Department');");
+
+    // Seed Classrooms linked to Teacher Sarah
+    $pdo->exec("INSERT INTO classrooms (id, teacher_id, name, avg_mastery) VALUES 
+        (1, 1, 'Grade 5 Mathematics - Section A', '68%'),
+        (2, 1, 'Grade 5 Mathematics - Section B', '54%'),
+        (3, 1, 'Grade 6 Remedial Math', '79%');");
 
     // 3. Class, Student, and Classroom Chapters setup (Explicitly set to Unlocked = 1)
     $pdo->exec("INSERT INTO classrooms (id, name, avg_mastery) VALUES (1, 'Grade 5 Mathematics - Section A', '78%');");
@@ -159,9 +178,36 @@ try {
         }
     }
 
-    // -------------------------------------------------------------
-    // COMPLETED 15-QUESTION STANDARD TESTS (1 for each unlocked chapter)
-    // -------------------------------------------------------------
+    $sample_materials = [
+        ["Fractions (Ch 1)", NULL, "Fractions Introduction Notes", "uploads/Fractions_Introduction_Notes.pdf"],
+        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Adding Like Fractions Guide", "uploads/Adding_Like_Fractions_Guide.pdf"],
+        ["Decimals (Ch 2)", NULL, "Decimals Place Value Chart", "uploads/Decimals_Place_Value_Chart.pdf"],
+        ["Percentages (Ch 3)", NULL, "Percentage Basics Workbook", "uploads/Percentage_Basics_Workbook.pdf"]
+    ];
+
+    $stmt_mat = $pdo->prepare("INSERT INTO chapter_materials (chapter_name, subtopic_name, title, file_path) VALUES (?, ?, ?, ?)");
+    foreach ($sample_materials as $mat) {
+        $stmt_mat->execute([$mat[0], $mat[1], $mat[2], $mat[3]]);
+    }
+
+    // Expanded Quiz 1 (Fractions Chapter 1) comprehensive data set
+    $sample_quizzes = [
+        ["Fractions (Ch 1)", NULL, "What is 1/2 + 1/4?", "1/6", "3/4", "2/6", "2/4", "B"],
+        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Which fraction is equivalent to 2/4?", "1/3", "1/4", "1/2", "3/5", "C"],
+        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Simplify the fraction 4/8 to its lowest terms.", "1/4", "1/3", "1/2", "2/3", "C"],
+        ["Fractions (Ch 1)", "Subtopic 1.2: Unlike Fractions", "What is the least common denominator (LCD) for fractions with denominators 3 and 4?", "6", "8", "12", "16", "C"],
+        ["Fractions (Ch 1)", "Subtopic 1.3: Improper Fractions", "Convert the improper fraction 7/3 into a mixed number.", "2 1/3", "1 2/3", "3 1/2", "2 2/3", "A"],
+        ["Decimals (Ch 2)", NULL, "What is the value of the digit 5 in 3.45?", "5 ones", "5 tenths", "5 hundredths", "5 tens", "C"],
+        ["Percentages (Ch 3)", NULL, "What is 50% expressed as a decimal?", "0.05", "0.5", "5.0", "0.55", "B"]
+    ];
+
+    $stmt_q = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, subtopic_name, question, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    foreach ($sample_quizzes as $q) {
+        $stmt_q->execute([$q[0], $q[1], $q[2], $q[3], $q[4], $q[5], $q[6], $q[7]]);
+    }
+
+    $pdo->exec("INSERT INTO discussion_posts (student_id, title, content) VALUES 
+        (1, 'How do I simplify 12/16 to its lowest terms?', 'I know I need to divide numerator and denominator by the highest common factor, but I am stuck.');");
 
     // Chapter 1 Test (Island 1: 13/15 Score - Demonstrates Standard Proficiency)
     seedAssessmentAnswers($stmt_a, 1, [
@@ -278,8 +324,10 @@ try {
         ['What is 4/4 equal to?', '0', '1', '4', '8', 'B']
     ]);
 
+    $pdo->exec("INSERT INTO announcements (title, content, is_active) VALUES 
+        ('📢 Additional Math Support Class', 'Teacher Sarah has added an extra online tutoring session this Thursday at 3:00 PM for Fractions and Decimals review. Attendance is optional but encouraged!', 1);");
+
     $pdo->commit();
-    $status = 'success';
 } catch (Exception $e) {
     if ($pdo->inTransaction()) { 
         $pdo->rollBack(); 
@@ -293,22 +341,19 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduHunt - Database Setup</title>
+    <title>Database Setup Complete</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
-    <div class="bg-white p-8 max-w-lg w-full rounded-2xl shadow-md border border-slate-200 text-center">
+<body class="bg-slate-50 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 max-w-md w-full rounded-2xl shadow-sm border border-slate-100 text-center">
         <?php if ($status === 'success'): ?>
-            <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 font-black text-2xl">✓</div>
-            <h1 class="text-xl font-black text-slate-800">Database Setup Complete!</h1>
-            <p class="text-sm text-slate-600 mt-2">All unlocked chapters now have complete 15-question standard tests demonstrating student proficiency.</p>
-            <div class="mt-6 pt-4 border-t border-slate-100 flex justify-center gap-3">
-                <a href="history.php" class="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-sm shadow hover:bg-indigo-700 transition-colors">Go to History</a>
-            </div>
+            <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">✓</div>
+            <h1 class="text-lg font-bold text-slate-800 mb-1">Quiz 1 Data Added Successfully!</h1>
+            <p class="text-xs text-slate-500">Additional questions for Fractions (Ch 1) have been populated into the database.</p>
         <?php else: ?>
-            <div class="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 font-black text-2xl">✕</div>
-            <h1 class="text-xl font-black text-rose-600">Database Setup Failed</h1>
-            <p class="text-xs text-rose-500 font-mono mt-3 bg-rose-50 p-3 rounded-lg text-left overflow-x-auto"><?= htmlspecialchars($error_msg) ?></p>
+            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">✕</div>
+            <h1 class="text-lg font-bold text-slate-800 mb-1">Database Update Failed</h1>
+            <p class="text-xs text-rose-500 font-mono bg-rose-50 p-2 rounded text-left break-all mt-2"><?= htmlspecialchars($error_msg) ?></p>
         <?php endif; ?>
     </div>
 </body>
