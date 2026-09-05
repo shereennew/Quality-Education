@@ -6,12 +6,25 @@ session_start();
 
 require_once __DIR__ . '/../config/db.php';
 
-// Mock student data
-$student = [
-    'name' => 'Aina',
-    'level' => 4,
-    'xp' => 320
-];
+$student_id = 1;
+
+// Fetch Student Info from DB
+try {
+    $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
+    $stmt_student->execute([$student_id]);
+    $student = $stmt_student->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $student = null;
+}
+
+if (!$student) {
+    // Fallback mock student data
+    $student = [
+        'name' => 'Aina',
+        'level' => 4,
+        'xp' => 320
+    ];
+}
 
 // Get chapters from database
 $chapters = [];
@@ -62,7 +75,7 @@ if (empty($db_chapters)) {
                             'Carry over numbers carefully during addition.',
                             'Borrow correctly from neighboring columns during subtraction.'
                         ],
-                        'example' => 'Calculate: $45,210 + 12,345$ <br><span class="text-pastel-primary font-bold">Answer: 57,555</span>'
+                        'example' => 'Calculate: 45,210 + 12,345 <br><span class="text-pastel-primary font-bold">Answer: 57,555</span>'
                     ],
                     'questions' => [
                         ['id' => 103, 'diff' => 'Easy', 'title' => 'Solve 5-digit addition with regrouping'],
@@ -85,7 +98,7 @@ if (empty($db_chapters)) {
                             'Multiply or divide numerator and denominator by the same non-zero number.',
                             'Simplify fractions to their lowest terms.'
                         ],
-                        'example' => 'Find an equivalent fraction for $\frac{2}{3}$ with denominator $6$. <br><span class="text-pastel-primary font-bold">Answer: $\frac{4}{6}$</span>'
+                        'example' => 'Find an equivalent fraction for 2/3 with denominator 6. <br><span class="text-pastel-primary font-bold">Answer: 4/6</span>'
                     ],
                     'questions' => [
                         ['id' => 201, 'diff' => 'Easy', 'title' => 'Simplify fractions to lowest terms']
@@ -183,14 +196,14 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
 </head>
 <body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center p-6 pt-32">
 
-    <!-- NAV BAR -->
+    <!-- EXACT NAV BAR MATCHING QUIZ.PHP -->
     <nav class="bg-pastel-nav fixed w-full h-20 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
         <div class="w-full max-w-[85rem] mx-auto px-8 flex items-center justify-between">
             <a href="index.php" class="flex items-center gap-3 flex-shrink-0">
                 <div class="bg-pastel-badge w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm">
                     <span class="text-2xl">📖</span>
                 </div>
-                <span class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block">Eduhunt</span>
+                <span class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block">EduHunt</span>
             </a>
 
             <div class="hidden md:flex items-center justify-center flex-1 mx-6">
@@ -326,11 +339,13 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
             if (tab === 'notes') {
                 notesBtn.className = "pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition";
                 lessonsBtn.className = "pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition";
+                document.getElementById('view-notes').classList.add('block');
                 document.getElementById('view-notes').classList.remove('hidden');
                 document.getElementById('view-lessons').classList.add('hidden');
             } else {
                 lessonsBtn.className = "pb-3 text-sm font-bold border-b-2 border-pastel-primary text-pastel-primary transition";
                 notesBtn.className = "pb-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-pastel-text transition";
+                document.getElementById('view-lessons').classList.add('block');
                 document.getElementById('view-lessons').classList.remove('hidden');
                 document.getElementById('view-notes').classList.add('hidden');
             }

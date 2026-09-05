@@ -148,35 +148,15 @@ foreach ($island_config as $id => $config) {
                 </ul>
             </div>
 
-            <!-- PROFILE -->
+            <!-- PROFILE (STATIC DISPLAY) -->
             <div class="flex items-center flex-shrink-0">
-                <button id="user-menu-button" data-dropdown-toggle="user-dropdown" type="button" class="flex items-center gap-3 py-2.5 px-4 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm hover:border-pastel-primary/50 hover:shadow-md transition-all duration-200">
+                <div class="flex items-center gap-3 py-2.5 px-4 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm">
                     <div class="w-10 h-10 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-lg">
                         <?= strtoupper(substr($student['name'], 0, 1)) ?>
                     </div>
                     <span class="text-lg font-bold text-pastel-text hidden sm:block">
                         <?= htmlspecialchars($student['name']) ?>
                     </span>
-                    <svg class="w-5 h-5 text-pastel-primary" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m19 9-7 7-7-7" />
-                    </svg>
-                </button>
-
-                <!-- PROFILE DROPDOWN -->
-                <div class="z-50 hidden bg-pastel-card border-2 border-pastel-nav rounded-2xl shadow-xl w-56 mt-2" id="user-dropdown">
-                    <div class="px-5 py-3.5 border-b-2 border-pastel-nav">
-                        <span class="block text-base font-bold text-pastel-text">
-                            <?= htmlspecialchars($student['name']) ?>
-                        </span>
-                        <span class="block text-xs text-pastel-primary font-semibold mt-0.5">
-                            Level <?= $student['level'] ?>
-                        </span>
-                    </div>
-                    <ul class="p-2 text-base text-pastel-text font-medium" aria-labelledby="user-menu-button">
-                        <li><a href="#" class="block w-full px-4 py-2.5 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Profile</a></li>
-                        <li><a href="#" class="block w-full px-4 py-2.5 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Settings</a></li>
-                        <li><a href="#" class="block w-full px-4 py-2.5 hover:bg-pastel-bg hover:text-pastel-primary rounded-xl transition-colors">Sign out</a></li>
-                    </ul>
                 </div>
 
                 <!-- MOBILE MENU BUTTON -->

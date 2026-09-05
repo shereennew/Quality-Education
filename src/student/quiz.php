@@ -1,12 +1,12 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 
-// Mock student data for UI prototyping
-$student = [
-    'name' => 'Aina',
-    'level' => 4,
-    'xp' => 320
-];
+$student_id = 1;
+
+// Fetch Student Info
+$stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
+$stmt_student->execute([$student_id]);
+$student = $stmt_student->fetch(PDO::FETCH_ASSOC);
 
 // Mock database / chapters matching module.php
 $chapters = [
@@ -24,16 +24,21 @@ $chapters = [
 $selected_chap_id = isset($_GET['chapter']) && isset($chapters[$_GET['chapter']]) ? (int)$_GET['chapter'] : 1;
 $chapter_info = $chapters[$selected_chap_id];
 
-// Teacher-created chapter quizzes are available here as assigned quizzes.
+// Teacher-created chapter quizzes are available here as assigned quizzes, scoped by student_id = 1
 $assigned_quizzes = [];
 try {
-    $stmt_assigned = $pdo->query("SELECT * FROM chapter_quizzes ORDER BY chapter_name, id");
-    foreach ($stmt_assigned->fetchAll(PDO::FETCH_ASSOC) as $quiz) {
-        $assigned_quizzes[$quiz['chapter_name']][] = $quiz;
-    }
+    $stmt_assigned = $pdo->prepare("SELECT * FROM chapter_quizzes WHERE (chapter_name LIKE ? OR chapter_name = ?) AND student_id = ? ORDER BY id");
+    $stmt_assigned->execute(['%' . $selected_chap_id . '%', $chapter_info['title'], $student_id]);
+    $assigned_quizzes[$chapter_info['title']] = $stmt_assigned->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // Keep the practice quiz available if the database has not been initialized yet.
-    $assigned_quizzes = [];
+    try {
+        // Fallback if chapter_quizzes doesn't have student_id column
+        $stmt_assigned = $pdo->prepare("SELECT * FROM chapter_quizzes WHERE chapter_name LIKE ? OR chapter_name = ? ORDER BY id");
+        $stmt_assigned->execute(['%' . $selected_chap_id . '%', $chapter_info['title']]);
+        $assigned_quizzes[$chapter_info['title']] = $stmt_assigned->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $ex) {
+        $assigned_quizzes = [];
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -73,7 +78,7 @@ try {
                 <div class="bg-pastel-badge w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm">
                     <span class="text-2xl">📖</span>
                 </div>
-                <span class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block">Eduhunt</span>
+                <span class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block">EduHunt</span>
             </a>
 
             <div class="hidden md:flex items-center justify-center flex-1 mx-6">
@@ -103,7 +108,7 @@ try {
         <!-- Header Banner -->
         <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Quiz Center</span>
+                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Chapterr</span>
                 <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_info['title']) ?></h1>
                 <p class="text-sm text-slate-500 mt-0.5"><?= htmlspecialchars($chapter_info['topic']) ?></p>
             </div>
@@ -115,50 +120,8 @@ try {
         <!-- QUIZ MENU SELECTION VIEW -->
         <div id="quiz-menu" class="space-y-6">
             
-            <!-- AI Dynamic Generator Banner -->
-            <div class="bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 p-6 rounded-2xl border border-purple-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div>
-                    <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Powered by Gemini AI</span>
-                    <h2 class="text-xl font-bold text-pastel-text mt-0.5">Generate Dynamic Chapter Quiz ✨</h2>
-                    <p class="text-xs text-slate-600 mt-1">Instantly build custom multiple-choice questions tailored to this module using AI.</p>
-                </div>
-                <button onclick="fetchAIQuiz('<?= htmlspecialchars($chapter_info['title'] . ' - ' . $chapter_info['topic']) ?>')" class="w-full sm:w-auto px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition whitespace-nowrap flex items-center justify-center gap-2">
-                    <span>Generate AI Quiz ⚡</span>
-                </button>
-            </div>
 
-            <!-- TEACHER-ASSIGNED QUIZZES -->
-            <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
-                <div class="flex items-start justify-between gap-4 mb-4">
-                    <div>
-                        <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">Teacher assigned</span>
-                        <h2 class="text-xl font-bold text-pastel-text mt-0.5">Complete Your Assigned Quizzes</h2>
-                        <p class="text-xs text-slate-600 mt-1">Choose a quiz prepared by your teacher to start answering the questions.</p>
-                    </div>
-                    <span class="hidden sm:block text-2xl">📝</span>
-                </div>
-
-                <?php if (!empty($assigned_quizzes)): ?>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <?php foreach ($assigned_quizzes as $chapter_name => $questions): ?>
-                            <div class="p-4 rounded-xl border-2 border-emerald-100 bg-emerald-50/40 flex items-center justify-between gap-3">
-                                <div>
-                                    <h3 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chapter_name) ?></h3>
-                                    <p class="text-xs text-slate-500 mt-1"><?= count($questions) ?> question<?= count($questions) === 1 ? '' : 's' ?></p>
-                                </div>
-                                <button type="button" onclick="startAssignedQuiz(<?= htmlspecialchars(json_encode($chapter_name), ENT_QUOTES, 'UTF-8') ?>)" class="shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition">
-                                    Start Quiz
-                                </button>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php else: ?>
-                    <div class="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
-                        No quizzes have been assigned yet.
-                    </div>
-                <?php endif; ?>
-            </div>
-
+        
             <!-- Chapter Navigation Selector -->
             <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
                 <h3 class="text-sm font-bold text-pastel-text mb-3">Select Chapter Module:</h3>
@@ -173,6 +136,53 @@ try {
                         </a>
                     <?php endforeach; ?>
                 </div>
+            </div>
+
+            <!-- AI Dynamic Generator Banner -->
+            <div class="bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 p-6 rounded-2xl border border-purple-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div>
+                    <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Powered by Gemini AI</span>
+                    <h2 class="text-xl font-bold text-pastel-text mt-0.5">Generate Dynamic Chapter Quiz ✨</h2>
+                    <p class="text-xs text-slate-600 mt-1">Instantly build custom multiple-choice questions tailored to this module using AI.</p>
+                </div>
+                <button onclick="fetchAIQuiz('<?= htmlspecialchars($chapter_info['title'] . ' - ' . $chapter_info['topic']) ?>')" class="w-full sm:w-auto px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition whitespace-nowrap flex items-center justify-center gap-2">
+                    <span>Generate AI Quiz ⚡</span>
+                </button>
+            </div>
+
+
+            <!-- TEACHER-ASSIGNED QUIZZES -->
+            <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
+                <div class="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                        <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">Teacher assigned</span>
+                        <h2 class="text-xl font-bold text-pastel-text mt-0.5">Complete Your Assigned Quizzes</h2>
+                        <p class="text-xs text-slate-600 mt-1">Choose a quiz prepared by your teacher for this chapter to start answering the questions.</p>
+                    </div>
+                    <span class="hidden sm:block text-2xl">📝</span>
+                </div>
+
+                <?php if (!empty($assigned_quizzes[$chapter_info['title']])): ?>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <?php foreach ($assigned_quizzes as $chapter_name => $questions): ?>
+                            <?php if (!empty($questions)): ?>
+                                <div class="p-4 rounded-xl border-2 border-emerald-100 bg-emerald-50/40 flex items-center justify-between gap-3">
+                                    <div>
+                                        <h3 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chapter_name) ?></h3>
+                                        <p class="text-xs text-slate-500 mt-1"><?= count($questions) ?> question<?= count($questions) === 1 ? '' : 's' ?></p>
+                                    </div>
+                                    <button type="button" onclick="startAssignedQuiz(<?= htmlspecialchars(json_encode($chapter_name), ENT_QUOTES, 'UTF-8') ?>)" class="shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition">
+                                        Start Quiz
+                                    </button>
+                                </div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                <?php else: ?>
+                    <div class="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+                        No quizzes have been assigned for this chapter yet.
+                    </div>
+                <?php endif; ?>
             </div>
 
         </div>
