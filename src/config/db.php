@@ -1,6 +1,6 @@
 <?php
 // Ensure db_file points to the exact root folder where db.php resides
-$db_file = __DIR__ . DIRECTORY_SEPARATOR . 'system.db';
+$db_file = __DIR__ . DIRECTORY_SEPARATOR . 'database.sqlite';
 
 try {
     $pdo = new PDO("sqlite:" . $db_file);

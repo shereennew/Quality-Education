@@ -12,7 +12,7 @@ try {
     $pdo->exec("DROP TABLE IF EXISTS student_assessments;");
     $pdo->exec("DROP TABLE IF EXISTS discussion_replies;");
     $pdo->exec("DROP TABLE IF EXISTS discussion_posts;");
-    $pdo->exec("DROP TABLE IF EXISTS quiz_questions;"); // Updated table name if applicable or keeping chapter_quizzes
+    $pdo->exec("DROP TABLE IF EXISTS quiz_questions;");
     $pdo->exec("DROP TABLE IF EXISTS chapter_quizzes;");
     $pdo->exec("DROP TABLE IF EXISTS chapter_materials;");
     $pdo->exec("DROP TABLE IF EXISTS classroom_chapters;");
@@ -51,38 +51,37 @@ try {
         FOREIGN KEY(classroom_id) REFERENCES classrooms(id) ON DELETE SET NULL
     );");
 
-$pdo->exec("CREATE TABLE student_progress (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, 
-    student_id INTEGER NOT NULL, 
-    island_id INTEGER NOT NULL, 
-    chapter_name TEXT NOT NULL, 
-    status TEXT NOT NULL DEFAULT 'In Progress', 
-    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
-);");
+    $pdo->exec("CREATE TABLE student_progress (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        student_id INTEGER NOT NULL, 
+        island_id INTEGER NOT NULL, 
+        chapter_name TEXT NOT NULL, 
+        status TEXT NOT NULL DEFAULT 'In Progress', 
+        FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
+    );");
 
-$pdo->exec("CREATE TABLE student_assessments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id INTEGER NOT NULL,
-    island_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    type TEXT NOT NULL,
-    score TEXT NOT NULL,
-    status TEXT NOT NULL,
-    submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
-);");
+    $pdo->exec("CREATE TABLE student_assessments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        island_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        type TEXT NOT NULL,
+        score TEXT NOT NULL,
+        status TEXT NOT NULL,
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
+    );");
 
-$pdo->exec("CREATE TABLE student_answers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    assessment_id INTEGER NOT NULL,
-    question_text TEXT NOT NULL,
-    student_answer TEXT NOT NULL,
-    correct_answer TEXT NOT NULL,
-    is_correct INTEGER NOT NULL,
-    explanation TEXT NOT NULL,
-    FOREIGN KEY(assessment_id) REFERENCES student_assessments(id) ON DELETE CASCADE
-);");
-
+    $pdo->exec("CREATE TABLE student_answers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        assessment_id INTEGER NOT NULL,
+        question_text TEXT NOT NULL,
+        student_answer TEXT NOT NULL,
+        correct_answer TEXT NOT NULL,
+        is_correct INTEGER NOT NULL,
+        explanation TEXT NOT NULL,
+        FOREIGN KEY(assessment_id) REFERENCES student_assessments(id) ON DELETE CASCADE
+    );");
 
     $pdo->exec("CREATE TABLE classroom_chapters (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -142,8 +141,7 @@ $pdo->exec("CREATE TABLE student_answers (
         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
     );");
 
-
-function seedAssessmentAnswers($pdo, $assessment_id, $data) {
+    function seedAssessmentAnswers($pdo, $assessment_id, $data) {
         $stmt = $pdo->prepare("INSERT INTO student_answers (assessment_id, question_text, student_answer, correct_answer, is_correct, explanation) VALUES (?, ?, ?, ?, ?, ?)");
         foreach ($data as $q) {
             $stmt->execute([$assessment_id, $q[0], $q[1], $q[2], $q[3], $q[4]]);
@@ -171,7 +169,6 @@ function seedAssessmentAnswers($pdo, $assessment_id, $data) {
         (2, 1, 'Grade 5 Mathematics - Section B', '54%'),
         (3, 1, 'Grade 6 Remedial Math', '79%');");
 
-    // 3. Class, Student, and Classroom Chapters setup (Explicitly set to Unlocked = 1)
     $pdo->exec("INSERT INTO students (id, classroom_id, name, status, score) VALUES (1, 1, 'Amina Yusuf', 'Advancing', 92);");
 
     $pdo->exec("INSERT INTO classroom_chapters (classroom_id, chapter_name, is_unlocked) VALUES 
@@ -179,20 +176,15 @@ function seedAssessmentAnswers($pdo, $assessment_id, $data) {
         (1, 'Cherry Blossom: Multiplications', 1),
         (1, 'Volcanic Jungle: Fractions & Decimals', 1);");
 
-    // 4. Student Progress records for all 3 Unlocked Chapters
     $pdo->exec("INSERT INTO student_progress (student_id, island_id, chapter_name, status) VALUES 
         (1, 1, 'Ancient Pyramid: Fundamentals', 'Completed'),
         (1, 2, 'Cherry Blossom: Multiplications', 'Completed'),
         (1, 3, 'Volcanic Jungle: Fractions & Decimals', 'Completed');");
 
-    // 5. Seed Completed Standard Assessments for every unlocked chapter
     $pdo->exec("INSERT INTO student_assessments (id, student_id, island_id, title, type, score, status, submitted_at) VALUES 
         (1, 1, 1, 'Chapter 1 Standard Test: Addition & Subtraction', 'Test', '13/15', 'Mastered', '2026-03-01 09:00:00'),
         (2, 1, 2, 'Chapter 2 Standard Test: Equivalent Fractions', 'Test', '12/15', 'Mastered', '2026-03-02 11:30:00'),
         (3, 1, 3, 'Chapter 3 Standard Test: Mixed Numbers & Decimals', 'Test', '14/15', 'Mastered', '2026-03-03 14:00:00');");
-
-    
-
 
     $sample_materials = [
         ["Fractions (Ch 1)", NULL, "Fractions Introduction Notes", "uploads/Fractions_Introduction_Notes.pdf"],
@@ -201,11 +193,11 @@ function seedAssessmentAnswers($pdo, $assessment_id, $data) {
         ["Percentages (Ch 3)", NULL, "Percentage Basics Workbook", "uploads/Percentage_Basics_Workbook.pdf"]
     ];
 
+    $stmt_mat = $pdo->prepare("INSERT INTO chapter_materials (chapter_name, subtopic_name, title, file_path) VALUES (?, ?, ?, ?)");
     foreach ($sample_materials as $mat) {
         $stmt_mat->execute([$mat[0], $mat[1], $mat[2], $mat[3]]);
     }
 
-    // Expanded Quiz 1 (Fractions Chapter 1) comprehensive data set
     $sample_quizzes = [
         ["Fractions (Ch 1)", NULL, "What is 1/2 + 1/4?", "1/6", "3/4", "2/6", "2/4", "B"],
         ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Which fraction is equivalent to 2/4?", "1/3", "1/4", "1/2", "3/5", "C"],
@@ -224,7 +216,7 @@ function seedAssessmentAnswers($pdo, $assessment_id, $data) {
     $pdo->exec("INSERT INTO discussion_posts (student_id, title, content) VALUES 
         (1, 'How do I simplify 12/16 to its lowest terms?', 'I know I need to divide numerator and denominator by the highest common factor, but I am stuck.');");
 
-    // Chapter 1 Test (Island 1: 13/15 Score - Demonstrates Standard Proficiency)
+    // Chapter 1 Test Answers
     seedAssessmentAnswers($pdo, 1, [
         ['What is 1/5 + 2/5?', '3/5', '3/5', 1, 'Add numerators directly when denominators are identical.'],
         ['What is 3/4 + 2/4?', '5/8', '5/4 or 1 1/4', 0, 'Keep denominator as 4 when adding common fractions.'],
@@ -243,7 +235,7 @@ function seedAssessmentAnswers($pdo, $assessment_id, $data) {
         ['What is 3/6 + 2/6?', '5/6', '5/6', 1, '3 + 2 = 5.']
     ]);
 
-    // Chapter 2 Test (Island 2: 12/15 Score - Demonstrates Standard Proficiency)
+    // Chapter 2 Test Answers
     seedAssessmentAnswers($pdo, 2, [
         ['Simplify 6/8 to lowest terms.', '3/6', '3/4', 0, 'Divide top and bottom by greatest common divisor (2).'],
         ['Simplify 5/10 to lowest terms.', '1/2', '1/2', 1, 'Divide numerator and denominator by 5.'],
@@ -262,8 +254,8 @@ function seedAssessmentAnswers($pdo, $assessment_id, $data) {
         ['Which fraction is equal to 1 whole?', '4/4', '4/4', 1, 'Numerator equal to denominator equals 1 whole.']
     ]);
 
-    // Chapter 3 Test (Island 3: 14/15 Score - Demonstrates Standard Mastery)
-    seedAssessmentAnswers($pdo,1, [
+    // Chapter 3 Test Answers
+    seedAssessmentAnswers($pdo, 3, [
         ['Convert 7/3 to a mixed number.', '2 1/3', '2 1/3', 1, '7 divided by 3 equals 2 remainder 1.'],
         ['Convert 3 1/2 to an improper fraction.', '7/2', '7/2', 1, '(3 * 2) + 1 = 7 over denominator 2.'],
         ['Calculate 1/3 + 1/4.', '7/12', '7/12', 1, 'Find common denominator (12): 4/12 + 3/12 = 7/12.'],
@@ -281,10 +273,7 @@ function seedAssessmentAnswers($pdo, $assessment_id, $data) {
         ['What is 4/4 equal to?', '1', '1', 1, 'Equal numerator and denominator equals 1 whole.']
     ]);
 
-    // -------------------------------------------------------------
-    // CHAPTER QUIZ BANK SEEDING (15 Standard Level Questions per Chapter)
-    // -------------------------------------------------------------
-
+    // Chapter Quiz Bank Seeding
     seedChapterQuizBank($pdo, 'Ancient Pyramid: Fundamentals', [
         ['What is 1/5 + 2/5?', '2/5', '3/5', '4/5', '3/10', 'B'],
         ['What is 3/4 + 2/4?', '5/4', '5/8', '1/4', '6/4', 'A'],
@@ -363,8 +352,8 @@ function seedAssessmentAnswers($pdo, $assessment_id, $data) {
     <div class="bg-white p-8 max-w-md w-full rounded-2xl shadow-sm border border-slate-100 text-center">
         <?php if ($status === 'success'): ?>
             <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">✓</div>
-            <h1 class="text-lg font-bold text-slate-800 mb-1">Quiz 1 Data Added Successfully!</h1>
-            <p class="text-xs text-slate-500">Additional questions for Fractions (Ch 1) have been populated into the database.</p>
+            <h1 class="text-lg font-bold text-slate-800 mb-1">Database Setup Complete!</h1>
+            <p class="text-xs text-slate-500">All tables and quiz questions have been successfully populated.</p>
         <?php else: ?>
             <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">✕</div>
             <h1 class="text-lg font-bold text-slate-800 mb-1">Database Update Failed</h1>
