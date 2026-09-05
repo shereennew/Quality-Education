@@ -7,10 +7,12 @@ $error_msg = '';
 try {
     $pdo->beginTransaction();
 
-    // Drop tables in reverse dependency order
+    // Enable foreign key constraints in SQLite
+    $pdo->exec("PRAGMA foreign_keys = ON;");
+
     $pdo->exec("DROP TABLE IF EXISTS discussion_replies;");
     $pdo->exec("DROP TABLE IF EXISTS discussion_posts;");
-    $pdo->exec("DROP TABLE IF EXISTS quiz_questions;"); // Updated table name if applicable or keeping chapter_quizzes
+    $pdo->exec("DROP TABLE IF EXISTS student_quiz_answers;");
     $pdo->exec("DROP TABLE IF EXISTS chapter_quizzes;");
     $pdo->exec("DROP TABLE IF EXISTS chapter_materials;");
     $pdo->exec("DROP TABLE IF EXISTS classroom_chapters;");
@@ -115,37 +117,32 @@ try {
         FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
     );");
 
+    $pdo->exec("CREATE TABLE student_quiz_answers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        quiz_id INTEGER NOT NULL,
+        answer_status TEXT NOT NULL,
+        score INTEGER DEFAULT 0,
+        FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
+        FOREIGN KEY(quiz_id) REFERENCES chapter_quizzes(id) ON DELETE CASCADE
+    );");
+
     // -------------------------------------------------------------------------
     // Seed Data
     // -------------------------------------------------------------------------
     
-    // Seed Teachers
     $pdo->exec("INSERT INTO teachers (id, name, email, department) VALUES 
         (1, 'Teacher Sarah', 'sarah@eduhunt.com', 'Mathematics Department');");
 
-    // Seed Classrooms linked to Teacher Sarah
     $pdo->exec("INSERT INTO classrooms (id, teacher_id, name, avg_mastery) VALUES 
         (1, 1, 'Grade 5 Mathematics - Section A', '68%'),
         (2, 1, 'Grade 5 Mathematics - Section B', '54%'),
         (3, 1, 'Grade 6 Remedial Math', '79%');");
 
     $all_students = [
-        // Classroom 1
-        [1, 'Amina Yusuf', 'Advancing', 92, [3, 2, 1]],
-        [1, 'Bao Nguyen', 'Mastering', 95, [3, 3, 2]],
-        [1, 'Carlos Mendez', 'Struggling', 45, [1, 1, 0]],
-        [1, 'Deepa Patel', 'On Track', 78, [2, 2, 1]],
-        [1, 'Elias Thorne', 'Needs Help', 30, [1, 0, 0]],
-        [1, 'Fatima Al-Fassi', 'Mastering', 98, [3, 3, 3]],
-        
-        // Classroom 2
-        [2, 'Gabe Logan', 'Struggling', 50, [1, 0, 0]],
-        [2, 'Hannah Abbott', 'On Track', 74, [2, 1, 1]],
-        [2, 'Ian Malcolm', 'Mastering', 89, [3, 2, 2]],
-        
-        // Classroom 3
-        [3, 'Julia Roberts', 'Mastering', 96, [3, 3, 3]],
-        [3, 'Kevin Hart', 'Advancing', 85, [3, 2, 2]]
+        [1, 'Amina Yusuf', 'Mastering', [3, 2, 2]],
+        [1, 'Bao Nguyen', 'On Track', [3, 3, 3]],
+        [1, 'Carlos Mendez', 'Struggling', [1, 1, 1]],
     ];
 
     $chapters = ["Fractions (Ch 1)", "Decimals (Ch 2)", "Percentages (Ch 3)"];
@@ -154,10 +151,10 @@ try {
     $stmt_progress = $pdo->prepare("INSERT INTO student_progress (student_id, chapter_name, level) VALUES (?, ?, ?)");
 
     foreach ($all_students as $s) {
-        $stmt_student->execute([$s[0], $s[1], $s[2], $s[3]]);
+        $stmt_student->execute([$s[0], $s[1], $s[2], 0]);
         $student_id = $pdo->lastInsertId();
 
-        foreach ($s[4] as $index => $level) {
+        foreach ($s[3] as $index => $level) {
             $stmt_progress->execute([$student_id, $chapters[$index], $level]);
         }
     }
@@ -165,13 +162,12 @@ try {
     $stmt_cc = $pdo->prepare("INSERT INTO classroom_chapters (classroom_id, chapter_name, is_unlocked) VALUES (?, ?, ?)");
     foreach ([1, 2, 3] as $cid) {
         $stmt_cc->execute([$cid, "Fractions (Ch 1)", 1]);
-        $stmt_cc->execute([$cid, "Decimals (Ch 2)", 0]);
-        $stmt_cc->execute([$cid, "Percentages (Ch 3)", 0]);
+        $stmt_cc->execute([$cid, "Decimals (Ch 2)", 1]);
+        $stmt_cc->execute([$cid, "Percentages (Ch 3)", 1]);
     }
 
     $sample_materials = [
         ["Fractions (Ch 1)", NULL, "Fractions Introduction Notes", "uploads/Fractions_Introduction_Notes.pdf"],
-        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Adding Like Fractions Guide", "uploads/Adding_Like_Fractions_Guide.pdf"],
         ["Decimals (Ch 2)", NULL, "Decimals Place Value Chart", "uploads/Decimals_Place_Value_Chart.pdf"],
         ["Percentages (Ch 3)", NULL, "Percentage Basics Workbook", "uploads/Percentage_Basics_Workbook.pdf"]
     ];
@@ -181,15 +177,19 @@ try {
         $stmt_mat->execute([$mat[0], $mat[1], $mat[2], $mat[3]]);
     }
 
-    // Expanded Quiz 1 (Fractions Chapter 1) comprehensive data set
+    // Reduced & Streamlined Quiz Data
     $sample_quizzes = [
+        // Fractions (Ch 1)
         ["Fractions (Ch 1)", NULL, "What is 1/2 + 1/4?", "1/6", "3/4", "2/6", "2/4", "B"],
         ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Which fraction is equivalent to 2/4?", "1/3", "1/4", "1/2", "3/5", "C"],
-        ["Fractions (Ch 1)", "Subtopic 1.1: Like Fractions", "Simplify the fraction 4/8 to its lowest terms.", "1/4", "1/3", "1/2", "2/3", "C"],
-        ["Fractions (Ch 1)", "Subtopic 1.2: Unlike Fractions", "What is the least common denominator (LCD) for fractions with denominators 3 and 4?", "6", "8", "12", "16", "C"],
-        ["Fractions (Ch 1)", "Subtopic 1.3: Improper Fractions", "Convert the improper fraction 7/3 into a mixed number.", "2 1/3", "1 2/3", "3 1/2", "2 2/3", "A"],
-        ["Decimals (Ch 2)", NULL, "What is the value of the digit 5 in 3.45?", "5 ones", "5 tenths", "5 hundredths", "5 tens", "C"],
-        ["Percentages (Ch 3)", NULL, "What is 50% expressed as a decimal?", "0.05", "0.5", "5.0", "0.55", "B"]
+
+        // Decimals (Ch 2)
+        ["Decimals (Ch 2)", NULL, "What is 0.4 converted to a fraction in simplest form?", "2/5", "4/10", "1/4", "4/5", "A"],
+        ["Decimals (Ch 2)", "Subtopic 2.1: Tenths", "What is the value of the digit 5 in 3.45?", "5 ones", "5 tenths", "5 hundredths", "5 tens", "C"],
+
+        // Percentages (Ch 3)
+        ["Percentages (Ch 3)", NULL, "What is 50% expressed as a decimal?", "0.05", "0.5", "5.0", "0.55", "B"],
+        ["Percentages (Ch 3)", "Subtopic 3.1: Basics", "What is 25% as a fraction in lowest terms?", "1/4", "1/2", "3/4", "1/5", "A"]
     ];
 
     $stmt_q = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, subtopic_name, question, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -204,7 +204,20 @@ try {
         (1, 2, 'Divide both top and bottom numbers by 4 to get 3/4!');");
 
     $pdo->exec("INSERT INTO announcements (title, content, is_active) VALUES 
-        ('📢 Additional Math Support Class', 'Teacher Sarah has added an extra online tutoring session this Thursday at 3:00 PM for Fractions and Decimals review. Attendance is optional but encouraged!', 1);");
+        ('📢 Additional Math Support Class', 'Teacher Sarah has added an extra online tutoring session this Thursday at 3:00 PM for review.', 1);");
+
+    $sample_quiz_answers = [
+        [1, 1, 'Correct', 10],
+        [1, 2, 'Attempted', 5],
+        [2, 1, 'Correct', 10],
+        [2, 3, 'Correct', 10],
+        [3, 1, 'Attempted', 5]
+    ];
+
+    $stmt_sqa = $pdo->prepare("INSERT INTO student_quiz_answers (student_id, quiz_id, answer_status, score) VALUES (?, ?, ?, ?)");
+    foreach ($sample_quiz_answers as $ans) {
+        $stmt_sqa->execute([$ans[0], $ans[1], $ans[2], $ans[3]]);
+    }
 
     $pdo->commit();
 } catch (Exception $e) {
@@ -227,8 +240,8 @@ try {
     <div class="bg-white p-8 max-w-md w-full rounded-2xl shadow-sm border border-slate-100 text-center">
         <?php if ($status === 'success'): ?>
             <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">✓</div>
-            <h1 class="text-lg font-bold text-slate-800 mb-1">Quiz 1 Data Added Successfully!</h1>
-            <p class="text-xs text-slate-500">Additional questions for Fractions (Ch 1) have been populated into the database.</p>
+            <h1 class="text-lg font-bold text-slate-800 mb-1">Database Initialized Successfully!</h1>
+            <p class="text-xs text-slate-500">Streamlined quizzes and materials have been seeded successfully.</p>
         <?php else: ?>
             <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">✕</div>
             <h1 class="text-lg font-bold text-slate-800 mb-1">Database Update Failed</h1>

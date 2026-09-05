@@ -93,18 +93,6 @@ if ($student_target === 'all') {
     }
     echo "</div>";
 
-    // --- THIS TEACHER FEEDBACK FORM SECTION HERE ---
-    echo "<div class='pt-3 border-t border-blue-100 space-y-2'>";
-    echo "<p class='font-semibold text-slate-700'>💬 Teacher Feedback & Remarks:</p>";
-    echo "<form method='POST' action='../tools/save_feedback.php' class='space-y-2'>";
-    echo "<input type='hidden' name='student_id' value='{$student['id']}'>";
-    echo "<input type='hidden' name='classroom_id' value='{$class_id}'>";
-    echo "<textarea name='teacher_feedback' rows='2' placeholder='Type personalized feedback or advice for this student...' class='w-full text-xs p-2 rounded-xl border border-blue-100 bg-white focus:outline-none focus:border-pastel-primary'></textarea>";
-    echo "<button type='submit' class='text-[11px] font-semibold px-3 py-1.5 rounded-xl bg-pastel-primary text-white hover:bg-pastel-hover transition'>Save Feedback</button>";
-    echo "</form>";
-    echo "</div>";
-    // ---------------------------------------------------
-
     echo "</div>";
 }
 ?>
