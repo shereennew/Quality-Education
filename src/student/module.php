@@ -2,11 +2,13 @@
 $student_name = "Alex Tan";
 $current_page = 'module';
 
+// 导航栏配置
 $nav_items = [
-    'notes'    => 'Notes',
-    'practice' => 'Practice',
-    'quiz'     => 'Quiz',
-    'module'   => 'Module'
+    'home'     => ['label' => 'Home',     'url' => 'student_dashboard.php?page=home'],
+    'notes'    => ['label' => 'Notes',    'url' => 'student_dashboard.php?page=notes'],
+    'practice' => ['label' => 'Practice', 'url' => 'student_dashboard.php?page=practice'],
+    'quiz'     => ['label' => 'Quiz',     'url' => 'quiz.php'],
+    'module'   => ['label' => 'Module',   'url' => 'module.php']
 ];
 
 $chapter_title = "Chapter 4: Waterfall Forest";
@@ -112,9 +114,9 @@ $subtopics = [
                     </div>
 
                     <div class="flex space-x-2">
-                        <?php foreach ($nav_items as $key => $label): ?>
-                            <a href="index.php?page=<?= $key ?>" class="px-4 py-2 rounded-lg text-sm font-medium transition <?= $key === 'module' ? 'bg-pastel-primary text-white shadow-sm' : 'text-pastel-text hover:bg-white/60' ?>">
-                                <?= $label ?>
+                        <?php foreach ($nav_items as $key => $item): ?>
+                            <a href="<?= $item['url'] ?>" class="px-4 py-2 rounded-lg text-sm font-medium transition <?= $key === 'module' ? 'bg-pastel-primary text-white shadow-sm' : 'text-pastel-text hover:bg-white/60' ?>">
+                                <?= $item['label'] ?>
                             </a>
                         <?php endforeach; ?>
                     </div>
@@ -135,7 +137,7 @@ $subtopics = [
                 <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_title) ?></h1>
                 <p class="text-sm text-slate-500 mt-0.5"><?= htmlspecialchars($chapter_topic) ?></p>
             </div>
-            <a href="test.php?chapter=4" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm">
+            <a href="quiz.php?chapter=4" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-sm">
                 Take Chapter Test
             </a>
         </div>
@@ -275,7 +277,7 @@ $subtopics = [
                         <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-pastel-hover">${q.diff}</span>
                         <h4 class="font-semibold text-sm text-slate-700 mt-1">${q.title}</h4>
                     </div>
-                    <a href="index.php?page=practice&q=${q.id}" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-4 py-2 rounded-lg transition shadow-sm">
+                    <a href="student_dashboard.php?page=practice&q=${q.id}" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-4 py-2 rounded-lg transition shadow-sm">
                         Jump to Question →
                     </a>
                 `;
