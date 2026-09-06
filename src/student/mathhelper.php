@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 
-$student_id = 3;
+$student_id = 1;
 
 // Fetch Student Info
 $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
@@ -66,7 +66,8 @@ try {
 
 // Fetch student quiz completion history from database if available
 $completed_quiz_ids = [];
-$student_id = 1; // Adjust based on your session/auth variable
+$student_id = 1;
+
 try {
     $stmt_history = $pdo->prepare("SELECT quiz_id FROM student_quiz_history WHERE student_id = ? AND status = 'completed'");
     $stmt_history->execute([$student_id]);
@@ -78,64 +79,32 @@ try {
 // Fetch teacher-assigned quizzes for this chapter from DB
 $raw_quizzes = [];
 try {
-    $stmt_assigned = $pdo->prepare("SELECT * FROM chapter_quizzes WHERE chapter_name = ? ORDER BY id");
+$stmt_assigned = $pdo->prepare("
+    SELECT *
+    FROM teacher_quizzes
+    WHERE chapter_name = ?
+    ORDER BY id
+");
     $stmt_assigned->execute([$chapter_info['title']]);
     $raw_quizzes = $stmt_assigned->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $raw_quizzes = [];
 }
 
-// Map quizzes subtopic-by-subtopic identically to module.php
+
+// Group teacher-assigned quizzes by quiz title
 $assigned_quizzes = [];
-if (!empty($subtopics_list)) {
-    foreach ($subtopics_list as $index => $sub) {
-        $current_subtopic_idx = $index + 1;
-        $subtopic_num = $sub['subtopic_name'] ?? $current_subtopic_idx;
-        $subtopic_title =  $subtopic_num . ': ' . ($sub['title'] ?? 'Practice Quiz');
-        
-        $matched_quizzes = [];
-        foreach ($raw_quizzes as $qIndex => $q) {
-            $matches_subtopic = false;
-            if (isset($q['subtopic_name']) && (string)$q['subtopic_name'] === (string)$subtopic_num) {
-                $matches_subtopic = true;
-            } elseif ($qIndex % count($subtopics_list) === $index) {
-                $matches_subtopic = true;
-            }
 
-            if ($matches_subtopic) {
-                $matched_quizzes[] = $q;
-            }
-        }
+foreach ($raw_quizzes as $quiz) {
+    $quiz_title = $quiz['title'];
 
-        // Guarantee at least one quiz per subtopic
-        if (empty($matched_quizzes)) {
-            $matched_quizzes[] = [
-                'id' => 'fallback_' . $subtopic_num,
-                'question' => 'Which of the following best describes the core concept covered in ' . ($sub['title'] ?? $subtopic_title) . '?',
-                'option_a' => 'A fundamental rule used for accurate computation and verification.',
-                'option_b' => 'An incorrect method resulting in arithmetic errors.',
-                'option_c' => 'An unrelated historical formula.',
-                'option_d' => 'None of the above.',
-                'correct_option' => 'A'
-            ];
-        }
-
-        $assigned_quizzes[$subtopic_title] = $matched_quizzes;
+    if (!isset($assigned_quizzes[$quiz_title])) {
+        $assigned_quizzes[$quiz_title] = [];
     }
-} else {
-    // Fallback if no chapter materials are found in DB
-    $assigned_quizzes['Chapter Assessment'] = !empty($raw_quizzes) ? $raw_quizzes : [
-        [
-            'id' => 'default_1',
-            'question' => 'Default practice question for this module chapter.',
-            'option_a' => 'Option A',
-            'option_b' => 'Option B',
-            'option_c' => 'Option C',
-            'option_d' => 'Option D',
-            'correct_option' => 'A'
-        ]
-    ];
+
+    $assigned_quizzes[$quiz_title][] = $quiz;
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -198,14 +167,16 @@ if (!empty($subtopics_list)) {
         </div>
     </nav>
 
-    <!-- Main Content -->
-    <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
-        
+<!-- Main Content -->
+<main class="flex-1 w-full max-w-[85rem] mx-auto px-4 py-8">        
         <!-- Header Banner -->
         <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Chapter <?= $selected_chap_id ?></span>
-                <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_info['title']) ?></h1>
+<span class="text-xl font-black text-slate-700 tracking-tight">
+    Chapter <?= $selected_chap_id ?>
+</span>
+
+       <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_info['title']) ?></h1>
                 <p class="text-sm text-slate-500 mt-0.5"><?= htmlspecialchars($chapter_info['topic']) ?></p>
             </div>
             <a href="module.php?chap=<?= $selected_chap_id ?>" class="text-xs font-semibold px-3 py-2 bg-blue-50 text-pastel-hover hover:bg-blue-100 rounded-xl border border-blue-100 transition">
@@ -217,20 +188,38 @@ if (!empty($subtopics_list)) {
         <div id="quiz-menu" class="space-y-6">
             
             <!-- Chapter Navigation Selector -->
-            <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
-                <h3 class="text-sm font-bold text-pastel-text mb-3">Select Chapter Module:</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <?php foreach ($chapters as $id => $chap): ?>
-                        <a href="mathhelper.php?chapter=<?= $id ?>" class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
-                            <div>
-                                <span class="text-xs font-bold text-pastel-primary">Chapter <?= $id ?></span>
-                                <h4 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chap['title']) ?></h4>
-                            </div>
-                            <span class="text-xs font-semibold text-slate-400"><?= $id === $selected_chap_id ? 'Active 📍' : 'Select →' ?></span>
-                        </a>
-                    <?php endforeach; ?>
+<!-- Chapter Navigation Selector -->
+<div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
+
+    <div class="mb-5">
+        <h3 class="text-2xl font-extrabold text-pastel-text tracking-tight">
+            Select Chapter Module
+        </h3>
+        <p class="text-sm text-slate-500 mt-1">
+            Choose a chapter to explore and practise.
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <?php foreach ($chapters as $id => $chap): ?>
+            <a href="mathhelper.php?chapter=<?= $id ?>"
+               class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
+
+                <div>
+<span class="text-lg font-extrabold text-slate-700">
+    Chapter <?= $id ?>
+</span>
+
                 </div>
-            </div>
+
+                <span class="text-xs font-semibold text-slate-400">
+                    <?= $id === $selected_chap_id ? 'Active 📍' : 'Select' ?>
+                </span>
+
+            </a>
+        <?php endforeach; ?>
+    </div>
+</div>
 
             <!-- AI Dynamic Generator Banner -->
             <div class="bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 p-6 rounded-2xl border border-purple-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -249,8 +238,7 @@ if (!empty($subtopics_list)) {
                 <div class="flex items-start justify-between gap-4 mb-4">
                     <div>
                         <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">Teacher assigned</span>
-                        <h2 class="text-xl font-bold text-pastel-text mt-0.5">Complete Your Assigned Quizzes</h2>
-                        <p class="text-xs text-slate-600 mt-1">Choose a quiz prepared by your teacher for this chapter to start answering the questions.</p>
+                        <h2 class="text-xl font-bold text-pastel-text mt-0.5">Teacher Assigned Quizzes</h2>
                     </div>
                     <span class="hidden sm:block text-2xl">📝</span>
                 </div>
@@ -298,16 +286,27 @@ if (!empty($subtopics_list)) {
             </div>
 
             <!-- AI Feedback Display Container -->
-            <div id="ai-feedback-container" class="hidden mb-6 p-4 rounded-xl bg-blue-50/70 border border-blue-200">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-base">💡</span>
-                    <h5 class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Explanations & Feedback</h5>
-                </div>
-                <p id="ai-feedback-text" class="text-sm text-slate-700 leading-relaxed"></p>
-                <button id="next-question-btn" onclick="proceedToNextQuestion()" class="mt-4 px-4 py-2 bg-pastel-primary text-white text-xs font-bold rounded-xl hover:bg-pastel-hover transition hidden">
-                    Next Question →
-                </button>
-            </div>
+<div id="ai-feedback-container"
+     class="hidden mb-6 p-4 rounded-xl bg-blue-50/70 border border-blue-200">
+
+    <div class="flex items-center gap-2 mb-1">
+        <span class="text-base">💡</span>
+
+        <h5 class="text-xs font-bold text-pastel-primary uppercase tracking-wider">
+            Answer Feedback
+        </h5>
+    </div>
+
+    <div id="ai-feedback-text"
+         class="text-sm text-slate-700 leading-relaxed">
+    </div>
+
+    <button id="next-question-btn"
+            onclick="proceedToNextQuestion()"
+            class="mt-4 px-4 py-2 bg-pastel-primary text-white text-xs font-bold rounded-xl hover:bg-pastel-hover transition hidden">
+        Next Question →
+    </button>
+</div>
 
             <div class="flex justify-between items-center pt-4 border-t border-slate-100">
                 <button onclick="exitQuiz()" class="text-xs font-semibold text-slate-400 hover:text-rose-500 transition">
@@ -349,27 +348,39 @@ if (!empty($subtopics_list)) {
         let isEvaluating = false;
         const assignedQuizzes = <?= json_encode($assigned_quizzes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
-        function startAssignedQuiz(quizTitle) {
-            const rawQuestions = assignedQuizzes[quizTitle] || [];
-            const questions = rawQuestions.map((question) => ({
-                q: question.question,
-                options: [question.option_a, question.option_b, question.option_c, question.option_d],
-                ans: ['A', 'B', 'C', 'D'].indexOf(question.correct_option.toUpperCase())
-            }));
+function startAssignedQuiz(quizTitle) {
+    const rawQuestions = assignedQuizzes[quizTitle] || [];
 
-            if (questions.length === 0) {
-                alert('This assigned quiz has no questions yet.');
-                return;
-            }
+    const questions = rawQuestions.map((question) => ({
+        id: question.id,
+        q: question.question,
+        options: [
+            question.option_a,
+            question.option_b,
+            question.option_c,
+            question.option_d
+        ],
+        ans: ['A', 'B', 'C', 'D'].indexOf(
+            question.correct_option.toUpperCase()
+        ),
+        explanation: question.explanation || 'No explanation available.'
+    }));
 
-            document.getElementById('quiz-menu').classList.add('hidden');
-            document.getElementById('quiz-result').classList.add('hidden');
-            document.getElementById('quiz-runner').classList.remove('hidden');
-            startQuizEngine({
-                title: quizTitle,
-                questions: questions
-            });
-        }
+    if (questions.length === 0) {
+        alert('This assigned quiz has no questions yet.');
+        return;
+    }
+
+    document.getElementById('quiz-menu').classList.add('hidden');
+    document.getElementById('quiz-result').classList.add('hidden');
+    document.getElementById('quiz-runner').classList.remove('hidden');
+
+    startQuizEngine({
+        title: quizTitle,
+        questions: questions,
+        type: 'teacher'
+    });
+}
 
         async function fetchAIQuiz(topicName) {
             document.getElementById('quiz-menu').classList.add('hidden');
@@ -449,33 +460,155 @@ if (!empty($subtopics_list)) {
             });
         }
 
-        async function handleOptionSelection(selectedIndex, qData) {
-            if (isEvaluating) return;
-            isEvaluating = true;
+        function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text ?? '';
+    return div.innerHTML;
+}
 
-            const selectedAnswerText = qData.options[selectedIndex];
-            const isCorrect = selectedIndex === qData.ans;
-            if (isCorrect) score++;
+async function handleOptionSelection(selectedIndex, qData) {
+    if (isEvaluating) return;
+    isEvaluating = true;
 
-            const optsDiv = document.getElementById('options-container');
-            optsDiv.classList.add('pointer-events-none', 'opacity-50');
+    const selectedAnswerText = qData.options[selectedIndex];
+    const correctAnswerText = qData.options[qData.ans];
+    const isCorrect = selectedIndex === qData.ans;
 
-            const feedbackContainer = document.getElementById('ai-feedback-container');
-            const feedbackText = document.getElementById('ai-feedback-text');
-            feedbackContainer.classList.remove('hidden');
-            feedbackText.innerText = 'Evaluating answer with AI...';
+    if (isCorrect) {
+        score++;
+    }
 
-            try {
-                const aiText = await submitAnswerToAI(qData.q, selectedAnswerText);
-                feedbackText.innerText = aiText;
-            } catch (error) {
-                feedbackText.innerText = isCorrect 
-                    ? 'Correct! (Note: Could not fetch advanced AI feedback at the moment.)' 
-                    : 'Incorrect. (Note: Could not fetch advanced AI feedback at the moment.)';
+    const optsDiv = document.getElementById('options-container');
+    const optionButtons = optsDiv.querySelectorAll('button');
+
+    // Prevent selecting another answer
+    optionButtons.forEach(btn => {
+        btn.disabled = true;
+        btn.classList.remove(
+            'hover:border-pastel-primary',
+            'hover:bg-blue-50/50'
+        );
+        btn.classList.add('cursor-default');
+    });
+
+    // Highlight selected and correct answers
+    optionButtons.forEach((btn, idx) => {
+
+        // Correct answer = GREEN
+        if (idx === qData.ans) {
+            btn.classList.remove('border-slate-100');
+            btn.classList.add(
+                'border-emerald-500',
+                'bg-emerald-50',
+                'text-emerald-700'
+            );
+
+            // Add correct label
+            if (!btn.querySelector('.answer-label')) {
+                const label = document.createElement('span');
+                label.className =
+                    'answer-label ml-2 text-xs font-bold text-emerald-600';
+                label.innerText = '✓ Correct Answer';
+                btn.appendChild(label);
             }
-
-            document.getElementById('next-question-btn').classList.remove('hidden');
         }
+
+        // Selected wrong answer = RED
+        if (idx === selectedIndex && !isCorrect) {
+            btn.classList.remove('border-slate-100');
+            btn.classList.add(
+                'border-rose-500',
+                'bg-rose-50',
+                'text-rose-700'
+            );
+
+            const label = document.createElement('span');
+            label.className =
+                'answer-label ml-2 text-xs font-bold text-rose-600';
+            label.innerText = '✕ Your Answer';
+            btn.appendChild(label);
+        }
+
+        // Selected correct answer = GREEN + Your Answer
+        if (idx === selectedIndex && isCorrect) {
+            const label = document.createElement('span');
+            label.className =
+                'answer-label ml-2 text-xs font-bold text-emerald-600';
+            label.innerText = '✓ Your Answer';
+            btn.appendChild(label);
+        }
+    });
+
+    // Show explanation
+    const feedbackContainer =
+        document.getElementById('ai-feedback-container');
+
+    const feedbackText =
+        document.getElementById('ai-feedback-text');
+
+    feedbackContainer.classList.remove('hidden');
+
+    if (isCorrect) {
+        feedbackText.innerHTML = `
+            <div class="space-y-2">
+                <p class="font-bold text-emerald-600">
+                    ✓ Correct!
+                </p>
+
+                <p class="text-sm text-slate-700">
+                    <span class="font-semibold">Your answer:</span>
+                    ${escapeHtml(selectedAnswerText)}
+                </p>
+
+                <div class="pt-2 border-t border-blue-200">
+                    <p class="text-xs font-bold text-pastel-primary uppercase tracking-wider mb-1">
+                        Explanation
+                    </p>
+                    <p class="text-sm text-slate-700 leading-relaxed">
+                        ${escapeHtml(qData.explanation)}
+                    </p>
+                </div>
+            </div>
+        `;
+    } else {
+        feedbackText.innerHTML = `
+            <div class="space-y-3">
+                <p class="font-bold text-rose-600">
+                    ✕ Incorrect
+                </p>
+
+                <div>
+                    <p class="text-xs font-bold text-rose-600 uppercase tracking-wider">
+                        Your Answer
+                    </p>
+                    <p class="text-sm text-rose-700 font-semibold">
+                        ${escapeHtml(selectedAnswerText)}
+                    </p>
+                </div>
+
+                <div>
+                    <p class="text-xs font-bold text-emerald-600 uppercase tracking-wider">
+                        Correct Answer
+                    </p>
+                    <p class="text-sm text-emerald-700 font-semibold">
+                        ${escapeHtml(correctAnswerText)}
+                    </p>
+                </div>
+
+                <div class="pt-2 border-t border-blue-200">
+                    <p class="text-xs font-bold text-pastel-primary uppercase tracking-wider mb-1">
+                        Explanation
+                    </p>
+                    <p class="text-sm text-slate-700 leading-relaxed">
+                        ${escapeHtml(qData.explanation)}
+                    </p>
+                </div>
+            </div>
+        `;
+    }
+
+    document.getElementById('next-question-btn').classList.remove('hidden');
+}
 
         async function submitAnswerToAI(questionText, studentAnswer) {
             const response = await fetch('evaluate_quiz.php', {

@@ -18,6 +18,7 @@ try {
         'discussion_posts',
         'chapter_quizzes',
         'chapter_materials',
+        'teacher_quizzes',
         'classroom_chapters',
         'student_progress',
         'students',
@@ -98,6 +99,23 @@ try {
         score INTEGER DEFAULT 1 NOT NULL
     );");
 
+        $pdo->exec("CREATE TABLE teacher_quizzes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    teacher_id INTEGER,
+    chapter_name TEXT NOT NULL,
+    title TEXT NOT NULL,
+    question TEXT NOT NULL,
+    option_a TEXT NOT NULL,
+    option_b TEXT NOT NULL,
+    option_c TEXT NOT NULL,
+    option_d TEXT NOT NULL,
+    correct_option TEXT NOT NULL,
+    explanation TEXT,
+    score INTEGER DEFAULT 1 NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
+);");
+
     $pdo->exec("CREATE TABLE teacher_quiz_feedback (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         teacher_id INTEGER,
@@ -111,20 +129,21 @@ try {
     );");
 
     $pdo->exec("CREATE TABLE student_quiz_answers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        assessment_id INTEGER NOT NULL,
-        student_id INTEGER,
-        quiz_id INTEGER,
-        question_text TEXT NOT NULL,
-        student_answer TEXT NOT NULL,
-        correct_answer TEXT NOT NULL,
-        is_correct INTEGER NOT NULL,
-        explanation TEXT NOT NULL,
-        answer_status VARCHAR(50) DEFAULT 'Pending',
-        score INT DEFAULT 0,
-        FOREIGN KEY(assessment_id) REFERENCES student_assessments(id) ON DELETE CASCADE,
-        FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
-        FOREIGN KEY(quiz_id) REFERENCES chapter_quizzes(id) ON DELETE CASCADE
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    assessment_id INTEGER NOT NULL,
+    student_id INTEGER,
+    quiz_id INTEGER,
+    quiz_type TEXT DEFAULT 'chapter',
+    question_text TEXT NOT NULL,
+    student_answer TEXT NOT NULL,
+    correct_answer TEXT NOT NULL,
+    is_correct INTEGER NOT NULL,
+    explanation TEXT NOT NULL,
+    answer_status VARCHAR(50) DEFAULT 'Pending',
+    score INT DEFAULT 0,
+    FOREIGN KEY(assessment_id) REFERENCES student_assessments(id) ON DELETE CASCADE,
+    FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
+
     );");
 
     $pdo->exec("CREATE TABLE classroom_chapters (
@@ -239,6 +258,55 @@ try {
 
     $pdo->exec("INSERT INTO discussion_posts (student_id, title, content) VALUES 
         (1, 'How do I simplify 12/16 to its lowest terms?', 'I know I need to divide numerator and denominator by the highest common factor, but I am stuck.');");
+
+
+    $pdo->exec("INSERT INTO teacher_quizzes
+(teacher_id, chapter_name, title, question, option_a, option_b, option_c, option_d, correct_option, explanation)
+VALUES
+
+(1,
+ 'Ancient Pyramid: Fundamentals',
+ 'Fraction Challenge',
+ 'A cake is divided into 8 equal pieces. Sarah eats 3 pieces. What fraction of the cake is left?',
+ '3/8',
+ '5/8',
+ '6/8',
+ '1/8',
+ 'B',
+ 'There are 8 pieces in total and 3 are eaten, so 8 - 3 = 5 pieces remain. Therefore, 5/8 is left.'),
+
+(1,
+ 'Ancient Pyramid: Fundamentals',
+ 'Fraction Challenge',
+ 'Which fraction is greater?',
+ '2/5',
+ '1/2',
+ '1/3',
+ '1/4',
+ 'B',
+ '1/2 is greater than 2/5 because 1/2 = 5/10 while 2/5 = 4/10.'),
+
+(1,
+ 'Ancient Pyramid: Fundamentals',
+ 'Fraction Challenge',
+ 'Tom has 6/10 of a chocolate bar and gives away 2/10. How much does he have now?',
+ '2/10',
+ '3/10',
+ '4/10',
+ '8/10',
+ 'C',
+ 'Subtract the fractions with the same denominator: 6/10 - 2/10 = 4/10.'),
+
+(1,
+ 'Ancient Pyramid: Fundamentals',
+ 'Fraction Challenge',
+ 'Which fraction is equivalent to 3/6?',
+ '1/2',
+ '1/3',
+ '2/3',
+ '3/4',
+ 'A',
+ '3/6 can be simplified by dividing both numerator and denominator by 3, giving 1/2.');");
 
 // Seed Chapter Quiz Bank
 $chapter_quizzes_data = [
