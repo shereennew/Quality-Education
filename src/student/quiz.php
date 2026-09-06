@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/ai_quiz_helper.php';
 
 $student_id = 1;
 
@@ -60,21 +61,38 @@ try {
     $stmt_mat = $pdo->prepare("SELECT * FROM chapter_materials WHERE chapter_name = ? ORDER BY id ASC");
     $stmt_mat->execute([$chapter_info['title']]);
     $subtopics_list = $stmt_mat->fetchAll(PDO::FETCH_ASSOC);
-
-    // Build real learning topics for AI quiz
-$ai_topics = [];
-
-foreach ($subtopics_list as $subtopic) {
-    if (!empty($subtopic['title'])) {
-        $ai_topics[] = $subtopic['title'];
-    }
-}
-
-$ai_topic = !empty($ai_topics)
-    ? implode(', ', $ai_topics)
-    : $chapter_info['title'];
 } catch (Exception $e) {
     $subtopics_list = [];
+}
+
+// Prepare adaptive AI learning data from the real academic subtopics.
+$ai_academic_topics = [];
+foreach ($subtopics_list as $subtopic) {
+    $title = trim((string)($subtopic['title'] ?? ''));
+    if ($title !== '') {
+        $ai_academic_topics[] = $title;
+    }
+}
+$ai_academic_topics = array_values(array_unique($ai_academic_topics));
+
+// If there are no material titles, keep a safe fallback. The AI prompt is also told
+// not to treat decorative island/chapter names as mathematical content.
+if (empty($ai_academic_topics)) {
+    $ai_academic_topics[] = 'Mathematics practice';
+}
+
+try {
+    ensureAiQuizTables($pdo);
+    $ai_overall_profile = getAiRecommendedLevel($pdo, $student_id, $selected_chap_id, null);
+    $ai_subtopic_profiles = [];
+    foreach ($ai_academic_topics as $aiTopicTitle) {
+        $ai_subtopic_profiles[$aiTopicTitle] = getAiRecommendedLevel($pdo, $student_id, $selected_chap_id, $aiTopicTitle);
+    }
+    $recent_ai_attempts = getAiAttempts($pdo, $student_id, $selected_chap_id, 3);
+} catch (Throwable $e) {
+    $ai_overall_profile = ['level' => 'Beginner', 'percentage' => null, 'source' => 'first AI practice', 'answer_count' => 0];
+    $ai_subtopic_profiles = [];
+    $recent_ai_attempts = [];
 }
 
 // Fetch student quiz completion history from database if available
@@ -492,17 +510,92 @@ if (!empty($subtopics_list)) {
                 </div>
             </div>
 
-            <!-- AI Dynamic Generator Banner -->
-            <div class="bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 p-6 rounded-2xl border border-purple-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div>
-                    <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Powered by Gemini AI</span>
-                    <h2 class="text-xl font-bold text-pastel-text mt-0.5">Generate Dynamic Chapter Quiz ✨</h2>
-                    <p class="text-xs text-slate-600 mt-1">Instantly build custom multiple-choice questions tailored to this module using AI.</p>
+            <!-- ADAPTIVE AI QUIZ GENERATOR -->
+            <div class="bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 p-6 rounded-2xl border border-purple-200 shadow-sm">
+                <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+                    <div class="flex-1">
+                        <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Adaptive AI Practice</span>
+                        <h2 class="text-xl font-bold text-pastel-text mt-0.5">Generate a Quiz for Your Level</h2>
+                        <p class="text-xs text-slate-600 mt-1">Choose the whole topic or one subtopic. EduHunt recommends a level from your previous performance, but you can choose any difficulty.</p>
+                    </div>
+                    <div class="px-4 py-3 bg-white/80 border border-purple-100 rounded-xl min-w-[210px]">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Recommended Level</span>
+                        <span id="ai-recommended-level" class="text-lg font-black text-purple-700"><?= htmlspecialchars($ai_overall_profile['level']) ?></span>
+                        <span id="ai-recommended-reason" class="text-[11px] text-slate-500 block mt-0.5">
+                            <?php if ($ai_overall_profile['percentage'] !== null): ?>
+                                Based on <?= htmlspecialchars((string)$ai_overall_profile['percentage']) ?>% recent performance
+                            <?php else: ?>
+                                First AI practice on this topic
+                            <?php endif; ?>
+                        </span>
+                    </div>
                 </div>
-                <button onclick='fetchAIQuiz(<?= json_encode($ai_topic) ?>)' class="w-full sm:w-auto px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition whitespace-nowrap flex items-center justify-center gap-2">
-                    <span>Generate AI Quiz ⚡</span>
-                </button>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-6">
+                    <div class="bg-white/75 border border-purple-100 rounded-xl p-4">
+                        <span class="text-xs font-bold text-pastel-text block mb-3">1. What do you want to practise?</span>
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white cursor-pointer mb-2 hover:border-purple-300">
+                            <input type="radio" name="ai-scope" value="overall" checked onchange="updateAiScope()" class="mt-1">
+                            <span>
+                                <strong class="text-sm text-pastel-text">Overall Topic</strong>
+                                <span class="text-xs text-slate-500 block mt-0.5"><?= htmlspecialchars(implode(', ', $ai_academic_topics)) ?></span>
+                            </span>
+                        </label>
+                        <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white cursor-pointer hover:border-purple-300">
+                            <input type="radio" name="ai-scope" value="subtopic" onchange="updateAiScope()" class="mt-1">
+                            <span class="w-full">
+                                <strong class="text-sm text-pastel-text">Specific Subtopic</strong>
+                                <select id="ai-subtopic-select" onchange="updateAiRecommendation()" disabled class="mt-2 w-full rounded-lg border-slate-200 text-sm bg-slate-50 disabled:opacity-50">
+                                    <?php foreach ($ai_academic_topics as $aiTopicTitle): ?>
+                                        <option value="<?= htmlspecialchars($aiTopicTitle) ?>"><?= htmlspecialchars($aiTopicTitle) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="bg-white/75 border border-purple-100 rounded-xl p-4">
+                        <span class="text-xs font-bold text-pastel-text block mb-3">2. Choose Difficulty</span>
+                        <div class="grid grid-cols-3 gap-2" id="ai-difficulty-buttons">
+                            <button type="button" data-level="Beginner" onclick="selectAiDifficulty('Beginner')" class="ai-difficulty-btn px-3 py-3 rounded-xl border-2 text-xs font-bold transition">Beginner</button>
+                            <button type="button" data-level="Intermediate" onclick="selectAiDifficulty('Intermediate')" class="ai-difficulty-btn px-3 py-3 rounded-xl border-2 text-xs font-bold transition">Intermediate</button>
+                            <button type="button" data-level="Advanced" onclick="selectAiDifficulty('Advanced')" class="ai-difficulty-btn px-3 py-3 rounded-xl border-2 text-xs font-bold transition">Advanced</button>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-3">Beginner = basic understanding, Intermediate = mixed practice, Advanced = harder multi-step questions.</p>
+
+                        <button type="button" onclick="generateAIQuizFromForm()" class="mt-4 w-full px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl shadow-md transition">
+                            Generate 5 AI Questions
+                        </button>
+                    </div>
+                </div>
             </div>
+
+            <?php if (!empty($recent_ai_attempts)): ?>
+            <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                        <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">AI Quiz History</span>
+                        <h2 class="text-lg font-bold text-pastel-text">Recent AI Practice on This Topic</h2>
+                    </div>
+                    <a href="history.php?island_id=<?= $selected_chap_id ?>" class="text-xs font-bold text-pastel-primary hover:text-pastel-hover">View Full History →</a>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <?php foreach ($recent_ai_attempts as $attempt): ?>
+                        <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/70">
+                            <div class="flex justify-between gap-2 items-start">
+                                <span class="text-[10px] font-bold uppercase px-2 py-1 rounded bg-purple-100 text-purple-700"><?= htmlspecialchars($attempt['difficulty']) ?></span>
+                                <span class="text-[10px] text-slate-400"><?= date('M d', strtotime($attempt['created_at'])) ?></span>
+                            </div>
+                            <h3 class="text-sm font-bold text-pastel-text mt-2"><?= htmlspecialchars($attempt['subtopic'] ?: 'Overall Topic') ?></h3>
+                            <p class="text-xl font-black text-pastel-primary mt-2"><?= (int)$attempt['score'] ?> / <?= (int)$attempt['total'] ?></p>
+                            <?php if (!empty($attempt['weak_skill'])): ?>
+                                <p class="text-[11px] text-rose-600 mt-1">Practice: <?= htmlspecialchars($attempt['weak_skill']) ?></p>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <!-- TEACHER-ASSIGNED QUIZZES -->
             <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
@@ -589,6 +682,17 @@ if (!empty($subtopics_list)) {
                 <span id="result-score" class="text-3xl font-extrabold text-pastel-primary">0 / 0</span>
             </div>
 
+            <div id="ai-result-analysis" class="hidden max-w-2xl mx-auto mb-6 text-left bg-purple-50 border border-purple-200 rounded-2xl p-5">
+                <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Adaptive Learning Analysis</span>
+                <h3 class="font-bold text-pastel-text mt-1">Your Learning Focus</h3>
+                <p id="ai-result-analysis-text" class="text-sm text-slate-600 mt-2"></p>
+                <div id="ai-skill-breakdown" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4"></div>
+                <button id="practice-weakness-btn" type="button" onclick="practiceWeakArea()" class="hidden mt-4 w-full sm:w-auto px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition">
+                    Practice My Weak Area
+                </button>
+                <p id="ai-save-status" class="text-[11px] text-slate-400 mt-3"></p>
+            </div>
+
             <div class="flex justify-center gap-3">
                 <button onclick="exitQuiz()" class="px-6 py-2.5 bg-pastel-primary text-white text-xs font-bold rounded-xl hover:bg-pastel-hover transition">
                     Back to Quiz Menu
@@ -601,20 +705,38 @@ if (!empty($subtopics_list)) {
 
     </main>
 
-    <!-- Interactive Quiz Engine & AI Integration Script -->
+    <!-- Interactive Quiz Engine & Adaptive AI Integration Script -->
     <script>
         let currentQuiz = null;
         let activeQIndex = 0;
         let score = 0;
         let isEvaluating = false;
+        let currentAnswers = [];
+        let currentWeakSkill = '';
+        let selectedAiDifficulty = <?= json_encode($ai_overall_profile['level']) ?>;
+
         const assignedQuizzes = <?= json_encode($assigned_quizzes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const aiAcademicTopics = <?= json_encode($ai_academic_topics, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const aiOverallProfile = <?= json_encode($ai_overall_profile, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const aiSubtopicProfiles = <?= json_encode($ai_subtopic_profiles, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const selectedChapterId = <?= (int)$selected_chap_id ?>;
+
+        function makeAttemptKey() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+            return 'ai_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        }
 
         function startAssignedQuiz(quizTitle) {
             const rawQuestions = assignedQuizzes[quizTitle] || [];
             const questions = rawQuestions.map((question) => ({
                 q: question.question,
                 options: [question.option_a, question.option_b, question.option_c, question.option_d],
-                ans: ['A', 'B', 'C', 'D'].indexOf(question.correct_option.toUpperCase())
+                ans: ['A', 'B', 'C', 'D'].indexOf(question.correct_option.toUpperCase()),
+                skill: quizTitle,
+                difficulty: 'Teacher Assigned',
+                explanation: ''
             }));
 
             if (questions.length === 0) {
@@ -627,93 +749,147 @@ if (!empty($subtopics_list)) {
             document.getElementById('quiz-runner').classList.remove('hidden');
             startQuizEngine({
                 title: quizTitle,
+                type: 'assigned',
                 questions: questions
             });
         }
 
-        async function fetchAIQuiz(topicName) {
-
-    document.getElementById('quiz-menu').classList.add('hidden');
-    document.getElementById('quiz-result').classList.add('hidden');
-    document.getElementById('quiz-runner').classList.remove('hidden');
-
-    document.getElementById('quiz-title-display').innerText =
-        "AI Quiz Generator";
-
-    document.getElementById('quiz-subtitle-display').innerText =
-        "Topic: " + topicName;
-
-    document.getElementById('question-text').innerText =
-        "Generating your quiz...";
-
-    document.getElementById('options-container').innerHTML = '';
-
-    document
-        .getElementById('ai-feedback-container')
-        .classList.add('hidden');
-
-    try {
-
-        const response = await fetch('generate_ai_quiz.php', {
-            method: 'POST',
-
-            headers: {
-                'Content-Type': 'application/json'
-            },
-
-            body: JSON.stringify({
-                topic: topicName
-            })
-        });
-
-        const result = await response.json();
-
-        console.log('AI Quiz response:', result);
-
-        if (!response.ok || result.success !== true) {
-
-            throw new Error(
-                result.error || 'Could not generate quiz.'
-            );
+        function getSelectedAiScope() {
+            return document.querySelector('input[name="ai-scope"]:checked')?.value || 'overall';
         }
 
-        if (
-            !Array.isArray(result.questions) ||
-            result.questions.length === 0
-        ) {
-            throw new Error('No questions were generated.');
+        function getCurrentAiProfile() {
+            const scope = getSelectedAiScope();
+            if (scope === 'subtopic') {
+                const subtopic = document.getElementById('ai-subtopic-select').value;
+                return aiSubtopicProfiles[subtopic] || { level: 'Beginner', percentage: null, source: 'first AI practice' };
+            }
+            return aiOverallProfile;
         }
 
-        startQuizEngine({
-            title: "AI Quiz: " + topicName,
-            questions: result.questions
-        });
+        function updateAiScope() {
+            const scope = getSelectedAiScope();
+            document.getElementById('ai-subtopic-select').disabled = scope !== 'subtopic';
+            updateAiRecommendation(true);
+        }
 
-    } catch (error) {
+        function updateAiRecommendation(applyRecommendation = false) {
+            const profile = getCurrentAiProfile();
+            document.getElementById('ai-recommended-level').innerText = profile.level;
+            document.getElementById('ai-recommended-reason').innerText = profile.percentage !== null
+                ? `Based on ${profile.percentage}% recent performance`
+                : 'First AI practice on this topic';
 
-        console.error(
-            "Failed to generate AI quiz:",
-            error
-        );
+            if (applyRecommendation) {
+                selectAiDifficulty(profile.level);
+            } else {
+                paintDifficultyButtons();
+            }
+        }
 
-        alert(
-            "AI quiz could not be generated.\n\n" +
-            error.message
-        );
+        function selectAiDifficulty(level) {
+            selectedAiDifficulty = level;
+            paintDifficultyButtons();
+        }
 
-        exitQuiz();
-    }
-}
+        function paintDifficultyButtons() {
+            document.querySelectorAll('.ai-difficulty-btn').forEach((button) => {
+                const active = button.dataset.level === selectedAiDifficulty;
+                button.classList.toggle('border-purple-500', active);
+                button.classList.toggle('bg-purple-600', active);
+                button.classList.toggle('text-white', active);
+                button.classList.toggle('border-slate-200', !active);
+                button.classList.toggle('bg-white', !active);
+                button.classList.toggle('text-slate-600', !active);
+            });
+        }
+
+        function generateAIQuizFromForm() {
+            const scope = getSelectedAiScope();
+            const subtopic = scope === 'subtopic' ? document.getElementById('ai-subtopic-select').value : '';
+            const profile = getCurrentAiProfile();
+            const topicLabel = scope === 'subtopic' ? subtopic : aiAcademicTopics.join(', ');
+
+            fetchAIQuiz({
+                scopeType: scope,
+                topicLabel,
+                subtopic,
+                difficulty: selectedAiDifficulty,
+                studentLevel: profile.level,
+                focusSkill: ''
+            });
+        }
+
+        async function fetchAIQuiz(config) {
+            document.getElementById('quiz-menu').classList.add('hidden');
+            document.getElementById('quiz-result').classList.add('hidden');
+            document.getElementById('quiz-runner').classList.remove('hidden');
+
+            document.getElementById('quiz-title-display').innerText = 'Adaptive AI Quiz';
+            document.getElementById('quiz-subtitle-display').innerText = config.focusSkill
+                ? `Weak-area practice: ${config.focusSkill}`
+                : `${config.topicLabel} • ${config.difficulty}`;
+            document.getElementById('question-text').innerText = 'Generating questions for your level...';
+            document.getElementById('options-container').innerHTML = '';
+            document.getElementById('ai-feedback-container').classList.add('hidden');
+
+            try {
+                const response = await fetch('generate_ai_quiz.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        student_id: 1,
+                        chapter_id: selectedChapterId,
+                        scope_type: config.scopeType,
+                        topic: config.topicLabel,
+                        subtopic: config.subtopic,
+                        academic_topics: config.focusSkill ? [config.focusSkill] : aiAcademicTopics,
+                        difficulty: config.difficulty,
+                        student_level: config.studentLevel,
+                        focus_skill: config.focusSkill || ''
+                    })
+                });
+
+                const result = await response.json();
+                console.log('AI Quiz response:', result);
+
+                if (!response.ok || result.success !== true) {
+                    throw new Error(result.error || 'Could not generate quiz.');
+                }
+                if (!Array.isArray(result.questions) || result.questions.length !== 5) {
+                    throw new Error('AI did not return 5 valid questions. Please try again.');
+                }
+
+                startQuizEngine({
+                    title: config.focusSkill ? `AI Practice: ${config.focusSkill}` : `AI Quiz: ${config.topicLabel}`,
+                    type: 'ai',
+                    attemptKey: makeAttemptKey(),
+                    chapterId: selectedChapterId,
+                    topicLabel: config.topicLabel,
+                    scopeType: config.focusSkill ? 'subtopic' : config.scopeType,
+                    subtopic: config.focusSkill || config.subtopic,
+                    difficulty: config.difficulty,
+                    recommendedLevel: config.studentLevel,
+                    focusSkill: config.focusSkill || '',
+                    questions: result.questions
+                });
+            } catch (error) {
+                console.error('Failed to generate AI quiz:', error);
+                alert('AI quiz could not be generated.\n\n' + error.message);
+                exitQuiz();
+            }
+        }
 
         function startQuizEngine(quizData) {
             currentQuiz = quizData;
             activeQIndex = 0;
             score = 0;
             isEvaluating = false;
+            currentAnswers = [];
+            currentWeakSkill = '';
 
-            document.getElementById('quiz-title-display').innerText = "Active Quiz";
+            document.getElementById('quiz-title-display').innerText = quizData.type === 'ai' ? 'Adaptive AI Quiz' : 'Active Quiz';
             document.getElementById('quiz-subtitle-display').innerText = currentQuiz.title;
-
             renderQuestion();
         }
 
@@ -733,50 +909,65 @@ if (!empty($subtopics_list)) {
 
             qData.options.forEach((opt, idx) => {
                 const btn = document.createElement('button');
-                btn.className = "p-4 text-left border-2 border-slate-100 rounded-xl hover:border-pastel-primary hover:bg-blue-50/50 text-sm font-medium transition duration-200";
+                btn.className = 'p-4 text-left border-2 border-slate-100 rounded-xl hover:border-pastel-primary hover:bg-blue-50/50 text-sm font-medium transition duration-200';
                 btn.innerText = opt;
+                btn.dataset.optionIndex = idx;
                 btn.onclick = () => handleOptionSelection(idx, qData);
                 optsDiv.appendChild(btn);
             });
         }
 
-        async function handleOptionSelection(selectedIndex, qData) {
+        function handleOptionSelection(selectedIndex, qData) {
             if (isEvaluating) return;
             isEvaluating = true;
 
             const selectedAnswerText = qData.options[selectedIndex];
+            const correctAnswerText = qData.options[qData.ans];
             const isCorrect = selectedIndex === qData.ans;
             if (isCorrect) score++;
 
+            currentAnswers.push({
+                question: qData.q,
+                options: qData.options,
+                correct_index: qData.ans,
+                student_index: selectedIndex,
+                student_answer: selectedAnswerText,
+                correct_answer: correctAnswerText,
+                is_correct: isCorrect,
+                skill: qData.skill || currentQuiz.subtopic || 'General Practice',
+                difficulty: qData.difficulty || currentQuiz.difficulty || 'Beginner',
+                explanation: qData.explanation || ''
+            });
+
             const optsDiv = document.getElementById('options-container');
-            optsDiv.classList.add('pointer-events-none', 'opacity-50');
+            optsDiv.classList.add('pointer-events-none');
+            Array.from(optsDiv.children).forEach((button, idx) => {
+                button.classList.remove('hover:border-pastel-primary', 'hover:bg-blue-50/50');
+                if (idx === qData.ans) {
+                    button.classList.add('border-emerald-400', 'bg-emerald-50');
+                } else if (idx === selectedIndex) {
+                    button.classList.add('border-rose-400', 'bg-rose-50');
+                } else {
+                    button.classList.add('opacity-50');
+                }
+            });
 
             const feedbackContainer = document.getElementById('ai-feedback-container');
             const feedbackText = document.getElementById('ai-feedback-text');
             feedbackContainer.classList.remove('hidden');
-            feedbackText.innerText = 'Evaluating answer with AI...';
 
-            try {
-                const aiText = await submitAnswerToAI(qData.q, selectedAnswerText);
-                feedbackText.innerText = aiText;
-            } catch (error) {
-                feedbackText.innerText = isCorrect 
-                    ? 'Correct! (Note: Could not fetch advanced AI feedback at the moment.)' 
-                    : 'Incorrect. (Note: Could not fetch advanced AI feedback at the moment.)';
+            if (currentQuiz.type === 'ai') {
+                const verdict = isCorrect
+                    ? 'Correct! '
+                    : `Not quite. The correct answer is ${correctAnswerText}. `;
+                feedbackText.innerText = verdict + (qData.explanation || 'Review the correct method for this question.');
+            } else {
+                feedbackText.innerText = isCorrect
+                    ? 'Correct!'
+                    : `Incorrect. The correct answer is ${correctAnswerText}.`;
             }
 
             document.getElementById('next-question-btn').classList.remove('hidden');
-        }
-
-        async function submitAnswerToAI(questionText, studentAnswer) {
-            const response = await fetch('evaluate_quiz.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: questionText, answer: studentAnswer })
-            });
-            const result = await response.json();
-            const aiText = result.candidates[0].content.parts[0].text;
-            return aiText;
         }
 
         function proceedToNextQuestion() {
@@ -788,12 +979,122 @@ if (!empty($subtopics_list)) {
             }
         }
 
-        function showResults() {
+        function analyseSkills() {
+            const skillStats = {};
+
+            currentAnswers.forEach((answer) => {
+                const skill = answer.skill || 'General Practice';
+                if (!skillStats[skill]) {
+                    skillStats[skill] = { correct: 0, total: 0 };
+                }
+                skillStats[skill].total++;
+                if (answer.is_correct) skillStats[skill].correct++;
+            });
+
+            let weakSkill = '';
+            let lowestRate = 101;
+            let largestMistakeCount = -1;
+
+            Object.entries(skillStats).forEach(([skill, stat]) => {
+                const rate = stat.total > 0 ? (stat.correct / stat.total) * 100 : 0;
+                const mistakes = stat.total - stat.correct;
+                if (mistakes > 0 && (rate < lowestRate || (rate === lowestRate && mistakes > largestMistakeCount))) {
+                    weakSkill = skill;
+                    lowestRate = rate;
+                    largestMistakeCount = mistakes;
+                }
+            });
+
+            return { skillStats, weakSkill };
+        }
+
+        async function showResults() {
             document.getElementById('quiz-runner').classList.add('hidden');
             document.getElementById('quiz-result').classList.remove('hidden');
-
             document.getElementById('result-quiz-name').innerText = currentQuiz.title;
             document.getElementById('result-score').innerText = `${score} / ${currentQuiz.questions.length}`;
+
+            const analysisBox = document.getElementById('ai-result-analysis');
+            const practiceButton = document.getElementById('practice-weakness-btn');
+            const saveStatus = document.getElementById('ai-save-status');
+            analysisBox.classList.add('hidden');
+            practiceButton.classList.add('hidden');
+            saveStatus.innerText = '';
+
+            if (currentQuiz.type !== 'ai') return;
+
+            const analysis = analyseSkills();
+            currentWeakSkill = analysis.weakSkill;
+            analysisBox.classList.remove('hidden');
+
+            const analysisText = document.getElementById('ai-result-analysis-text');
+            if (currentWeakSkill) {
+                analysisText.innerText = `Your weakest area in this quiz was ${currentWeakSkill}. EduHunt can generate another set focused on that skill.`;
+                practiceButton.classList.remove('hidden');
+            } else {
+                analysisText.innerText = 'You answered every skill correctly in this set. Great work — you can try a harder difficulty next.';
+            }
+
+            const breakdown = document.getElementById('ai-skill-breakdown');
+            breakdown.innerHTML = '';
+            Object.entries(analysis.skillStats).forEach(([skill, stat]) => {
+                const percent = Math.round((stat.correct / stat.total) * 100);
+                const card = document.createElement('div');
+                card.className = 'bg-white border border-purple-100 rounded-xl p-3';
+                card.innerHTML = `<span class="text-xs font-bold text-pastel-text">${escapeHtml(skill)}</span><span class="text-xs text-slate-500 block mt-1">${stat.correct}/${stat.total} correct • ${percent}%</span>`;
+                breakdown.appendChild(card);
+            });
+
+            saveStatus.innerText = 'Saving this AI quiz to your history...';
+            try {
+                const response = await fetch('save_ai_quiz.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        attempt_key: currentQuiz.attemptKey,
+                        chapter_id: currentQuiz.chapterId,
+                        topic_label: currentQuiz.topicLabel,
+                        scope_type: currentQuiz.scopeType,
+                        subtopic: currentQuiz.subtopic,
+                        difficulty: currentQuiz.difficulty,
+                        recommended_level: currentQuiz.recommendedLevel,
+                        score,
+                        total: currentQuiz.questions.length,
+                        weak_skill: currentWeakSkill,
+                        answers: currentAnswers
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || result.success !== true) {
+                    throw new Error(result.error || 'Could not save quiz history.');
+                }
+                saveStatus.innerText = 'Saved to Quiz History.';
+            } catch (error) {
+                console.error('Could not save AI quiz history:', error);
+                saveStatus.innerText = 'Quiz completed, but history could not be saved.';
+            }
+        }
+
+        function practiceWeakArea() {
+            if (!currentWeakSkill || !currentQuiz || currentQuiz.type !== 'ai') return;
+
+            fetchAIQuiz({
+                scopeType: 'subtopic',
+                topicLabel: currentWeakSkill,
+                subtopic: currentWeakSkill,
+                difficulty: currentQuiz.difficulty,
+                studentLevel: currentQuiz.recommendedLevel,
+                focusSkill: currentWeakSkill
+            });
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
         }
 
         function exitQuiz() {
@@ -801,6 +1102,12 @@ if (!empty($subtopics_list)) {
             document.getElementById('quiz-result').classList.add('hidden');
             document.getElementById('quiz-menu').classList.remove('hidden');
         }
+
+        // Start the difficulty buttons on the student's recommended level.
+        document.addEventListener('DOMContentLoaded', () => {
+            selectAiDifficulty(aiOverallProfile.level || 'Beginner');
+            updateAiRecommendation(false);
+        });
     </script>
     <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js"></script>
 </body>

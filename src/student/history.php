@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/ai_quiz_helper.php';
 
 $student_id = 1;
 
@@ -48,6 +49,19 @@ $stmt_incorrect = $pdo->prepare("
 ");
 $stmt_incorrect->execute([$student_id, $selectedIsland]);
 $incorrectAnswers = $stmt_incorrect->fetchAll(PDO::FETCH_ASSOC);
+
+// Adaptive AI quiz history for this chapter/island.
+try {
+    ensureAiQuizTables($pdo);
+    $aiAttempts = getAiAttempts($pdo, $student_id, $selectedIsland, 20);
+    $aiAttemptAnswers = [];
+    foreach ($aiAttempts as $attempt) {
+        $aiAttemptAnswers[(int)$attempt['id']] = getAiAttemptAnswers($pdo, (int)$attempt['id']);
+    }
+} catch (Throwable $e) {
+    $aiAttempts = [];
+    $aiAttemptAnswers = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -427,6 +441,97 @@ $incorrectAnswers = $stmt_incorrect->fetchAll(PDO::FETCH_ASSOC);
                                     <span class="text-base font-black text-pastel-primary"><?= htmlspecialchars($item['score']) ?></span>
                                 </div>
                             </a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- ADAPTIVE AI QUIZ HISTORY -->
+            <div class="bg-pastel-card border border-pastel-nav p-6 rounded-2xl shadow-md">
+                <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+                    <div>
+                        <span class="text-xs font-bold text-purple-600 uppercase tracking-wider">Adaptive AI Practice</span>
+                        <h2 class="text-lg font-black text-pastel-text mt-1">AI Quiz History</h2>
+                        <p class="text-xs text-slate-400 mt-1">Review the AI questions you answered, your answers, explanations, and the skills that need more practice.</p>
+                    </div>
+                    <a href="quiz.php?chapter=<?= $selectedIsland ?>" class="text-xs font-bold px-3 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition">
+                        Generate New AI Quiz
+                    </a>
+                </div>
+
+                <?php if (empty($aiAttempts)): ?>
+                    <div class="p-4 rounded-xl border border-dashed border-purple-200 bg-purple-50/40 text-sm text-slate-500">
+                        No AI practice quizzes completed for this chapter yet.
+                    </div>
+                <?php else: ?>
+                    <div class="space-y-4">
+                        <?php foreach ($aiAttempts as $attempt): ?>
+                            <?php
+                                $attemptAnswers = $aiAttemptAnswers[(int)$attempt['id']] ?? [];
+                                $attemptPercent = (float)$attempt['percentage'];
+                            ?>
+                            <details class="group border-2 border-purple-100 rounded-2xl bg-purple-50/30 overflow-hidden">
+                                <summary class="cursor-pointer list-none p-4 sm:p-5 bg-white hover:bg-purple-50/50 transition">
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                        <div>
+                                            <div class="flex flex-wrap gap-2 items-center">
+                                                <span class="text-[10px] font-bold px-2 py-1 rounded bg-purple-100 text-purple-700 uppercase"><?= htmlspecialchars($attempt['difficulty']) ?></span>
+                                                <span class="text-[10px] font-bold px-2 py-1 rounded bg-blue-100 text-blue-700 uppercase"><?= htmlspecialchars($attempt['scope_type'] === 'subtopic' ? 'Subtopic' : 'Overall Topic') ?></span>
+                                                <span class="text-[10px] text-slate-400"><?= date('M d, Y · h:i A', strtotime($attempt['created_at'])) ?></span>
+                                            </div>
+                                            <h3 class="font-black text-pastel-text text-base mt-2"><?= htmlspecialchars($attempt['subtopic'] ?: $attempt['topic_label']) ?></h3>
+                                            <?php if (!empty($attempt['weak_skill'])): ?>
+                                                <p class="text-xs text-rose-600 mt-1"><strong>Learning focus:</strong> <?= htmlspecialchars($attempt['weak_skill']) ?></p>
+                                            <?php else: ?>
+                                                <p class="text-xs text-emerald-600 mt-1"><strong>Learning focus:</strong> No weak skill detected in this set.</p>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="flex items-center gap-4 sm:text-right">
+                                            <div>
+                                                <span class="text-[10px] uppercase font-bold text-slate-400 block">Score</span>
+                                                <span class="text-xl font-black text-pastel-primary"><?= (int)$attempt['score'] ?> / <?= (int)$attempt['total'] ?></span>
+                                            </div>
+                                            <div>
+                                                <span class="text-[10px] uppercase font-bold text-slate-400 block">Accuracy</span>
+                                                <span class="text-xl font-black <?= $attemptPercent >= 80 ? 'text-emerald-600' : ($attemptPercent >= 50 ? 'text-amber-600' : 'text-rose-600') ?>"><?= htmlspecialchars(rtrim(rtrim(number_format($attemptPercent, 1), '0'), '.')) ?>%</span>
+                                            </div>
+                                            <span class="text-slate-400 group-open:rotate-180 transition-transform">⌄</span>
+                                        </div>
+                                    </div>
+                                </summary>
+
+                                <div class="p-4 sm:p-5 border-t border-purple-100 space-y-3">
+                                    <?php foreach ($attemptAnswers as $answer): ?>
+                                        <div class="bg-white rounded-xl border <?= (int)$answer['is_correct'] === 1 ? 'border-emerald-200' : 'border-rose-200' ?> p-4">
+                                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                                <h4 class="font-bold text-sm text-slate-800 flex-1"><?= (int)$answer['question_order'] ?>. <?= htmlspecialchars($answer['question_text']) ?></h4>
+                                                <div class="flex gap-1.5">
+                                                    <span class="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-600"><?= htmlspecialchars($answer['skill']) ?></span>
+                                                    <span class="text-[10px] font-bold px-2 py-1 rounded <?= (int)$answer['is_correct'] === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' ?>">
+                                                        <?= (int)$answer['is_correct'] === 1 ? 'Correct' : 'Needs Practice' ?>
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs">
+                                                <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                                                    <span class="text-[10px] uppercase font-bold text-slate-400 block">Your Answer</span>
+                                                    <span class="font-bold <?= (int)$answer['is_correct'] === 1 ? 'text-emerald-700' : 'text-rose-700' ?>"><?= htmlspecialchars($answer['student_answer']) ?></span>
+                                                </div>
+                                                <div class="p-3 rounded-lg bg-emerald-50/60 border border-emerald-200">
+                                                    <span class="text-[10px] uppercase font-bold text-slate-400 block">Correct Answer</span>
+                                                    <span class="font-bold text-emerald-700"><?= htmlspecialchars($answer['correct_answer']) ?></span>
+                                                </div>
+                                            </div>
+
+                                            <div class="mt-3 p-3 rounded-lg bg-blue-50/60 border border-blue-100">
+                                                <span class="text-[10px] uppercase font-bold text-pastel-primary block">AI Explanation</span>
+                                                <p class="text-xs text-slate-600 mt-1 leading-relaxed"><?= htmlspecialchars($answer['explanation']) ?></p>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </details>
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>

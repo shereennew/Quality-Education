@@ -1,158 +1,221 @@
 <?php
 session_start();
+
 require_once __DIR__ . '/../config/db.php';
 
-// ======================================================
-// QUALITY-EDUCATION STUDENT + DYNAMIC EDUHUNT ISLANDS
-// ======================================================
-$student_id = 1;
+// -------------------------------------------------------------------------
+// 1. Dynamic Student Data Fetching
+// -------------------------------------------------------------------------
+$student_id = 3;
 
-// Add Eduhunt-style island metadata to the existing Quality-Education table.
-// Existing databases are upgraded automatically and old chapters keep working.
-$chapterColumns = $pdo->query("PRAGMA table_info(classroom_chapters)")->fetchAll(PDO::FETCH_ASSOC);
-$columnNames = array_column($chapterColumns, 'name');
-if (!in_array('chapter_order', $columnNames, true)) {
-    $pdo->exec("ALTER TABLE classroom_chapters ADD COLUMN chapter_order INTEGER DEFAULT 1");
-}
-if (!in_array('island_theme', $columnNames, true)) {
-    $pdo->exec("ALTER TABLE classroom_chapters ADD COLUMN island_theme TEXT DEFAULT 'forest'");
-}
-if (!in_array('is_published', $columnNames, true)) {
-    $pdo->exec("ALTER TABLE classroom_chapters ADD COLUMN is_published INTEGER DEFAULT 1");
-}
-
-// Fill sensible chapter orders for older rows that all received the default value 1.
-$stmtExisting = $pdo->query("SELECT id, classroom_id FROM classroom_chapters ORDER BY classroom_id, id");
-$orderByClass = [];
-foreach ($stmtExisting->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $cid = (int)$row['classroom_id'];
-    $orderByClass[$cid] = ($orderByClass[$cid] ?? 0) + 1;
-    $pdo->prepare("UPDATE classroom_chapters SET chapter_order = ? WHERE id = ? AND (chapter_order IS NULL OR chapter_order = 1)")
-        ->execute([$orderByClass[$cid], (int)$row['id']]);
-}
-
-$stmt = $pdo->prepare("SELECT id, name, classroom_id, COALESCE(score,0) AS xp FROM students WHERE id = ?");
-$stmt->execute([$student_id]);
-$studentRow = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$studentRow) {
-    die('Student not found.');
-}
-
-$student = [
-    'id' => (int)$studentRow['id'],
-    'full_name' => $studentRow['name'],
-    'xp' => (int)$studentRow['xp'],
-    'level' => max(1, (int)floor(((int)$studentRow['xp']) / 100) + 1),
-    'streak' => 0,
-];
-
-$classroom_id = (int)($studentRow['classroom_id'] ?? 0);
-$stmt = $pdo->prepare("SELECT id, name FROM classrooms WHERE id = ?");
-$stmt->execute([$classroom_id]);
-$classroomRow = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$classroomRow) {
-    die('No classroom found.');
-}
-$classroom = [
-    'id' => (int)$classroomRow['id'],
-    'class_name' => $classroomRow['name'],
-];
-
-// Every classroom_chapters row is one island. Adding a chapter adds an island automatically.
-$stmt = $pdo->prepare("
-    SELECT
-        cc.id,
-        cc.chapter_name AS title,
-        '' AS description,
-        COALESCE(cc.chapter_order, cc.id) AS chapter_order,
-        COALESCE(NULLIF(cc.island_theme,''), 'forest') AS island_theme,
-        COALESCE(cc.is_unlocked,0) AS is_unlocked,
-        COALESCE(sp.level,0) AS progress_level,
-        COALESCE(sp.status,'Not Started') AS progress_status
-    FROM classroom_chapters cc
-    LEFT JOIN student_progress sp
-      ON sp.student_id = ?
-     AND sp.chapter_name = cc.chapter_name
-    WHERE cc.classroom_id = ?
-      AND COALESCE(cc.is_published,1) = 1
-    ORDER BY COALESCE(cc.chapter_order, cc.id), cc.id
+$stmt_student = $pdo->prepare("
+    SELECT s.id, s.name, s.score AS xp, c.name AS classroom_name
+    FROM students s
+    LEFT JOIN classrooms c ON s.classroom_id = c.id
+    WHERE s.id = ?
 ");
-$stmt->execute([$student_id, $classroom_id]);
-$chapters = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$stmt_student->execute([$student_id]);
+$student = $stmt_student->fetch(PDO::FETCH_ASSOC);
 
-// Read the REAL Chapter Test score from student_assessments.
-// The score is stored as text such as "4/8". The dashboard must display
-// the actual percentage, not a fixed percentage based on Beginner/Intermediate/Master.
-$stmt = $pdo->prepare("
-    SELECT island_id, score, status
-    FROM student_assessments
+// Default fallback values
+if (!$student) {
+    $student = [
+        'id' => $student_id,
+        'name' => 'Student',
+        'xp' => 0,
+        'classroom_name' => 'Mathematics'
+    ];
+}
+
+// XP Level is separate from Chapter Mastery Level
+$student['xp_level'] = max(1, (int) floor(((int)$student['xp']) / 100));
+
+
+// -------------------------------------------------------------------------
+// 2. Dynamic Map Positions
+// -------------------------------------------------------------------------
+// The artwork stays the same, but chapter content now comes from the database.
+// Seven chapter pins are shown per world. If the teacher creates more than
+// seven chapters, World 2 automatically shows Chapters 8-14, and so on.
+$chapter_positions = [
+    ['theme_name' => 'Ancient Pyramid',       'x' => 44, 'y' => 84],
+    ['theme_name' => 'Cherry Blossom Valley', 'x' => 30, 'y' => 48],
+    ['theme_name' => 'Volcanic Jungle',       'x' => 50, 'y' => 48],
+    ['theme_name' => 'Hidden Cove',           'x' => 70, 'y' => 64],
+    ['theme_name' => 'Waterfall Cliffs',      'x' => 70, 'y' => 32],
+    ['theme_name' => 'Frozen Igloo',          'x' => 54, 'y' => 12],
+    ['theme_name' => 'Desert Treasure',       'x' => 32, 'y' => 20],
+];
+
+$chapters_per_world = count($chapter_positions);
+
+
+// -------------------------------------------------------------------------
+// 3. Get Student Classroom
+// -------------------------------------------------------------------------
+$stmt_classroom = $pdo->prepare("
+    SELECT classroom_id
+    FROM students
+    WHERE id = ?
+");
+$stmt_classroom->execute([$student_id]);
+$classroom_id = $stmt_classroom->fetchColumn();
+
+
+// -------------------------------------------------------------------------
+// 4. Get ALL Teacher-Created Chapters
+// -------------------------------------------------------------------------
+$chapter_rows = [];
+
+if ($classroom_id) {
+    $stmt_chapters = $pdo->prepare("
+        SELECT id, chapter_name, is_unlocked
+        FROM classroom_chapters
+        WHERE classroom_id = ?
+        ORDER BY id ASC
+    ");
+
+    $stmt_chapters->execute([$classroom_id]);
+    $chapter_rows = $stmt_chapters->fetchAll(PDO::FETCH_ASSOC);
+}
+
+$total_chapters = count($chapter_rows);
+$total_worlds = max(1, (int) ceil($total_chapters / $chapters_per_world));
+$current_world = max(1, (int) ($_GET['world'] ?? 1));
+$current_world = min($current_world, $total_worlds);
+$world_offset = ($current_world - 1) * $chapters_per_world;
+$visible_chapters = array_slice($chapter_rows, $world_offset, $chapters_per_world);
+
+// -------------------------------------------------------------------------
+// 5. Get Student Chapter Mastery Level
+// -------------------------------------------------------------------------
+// student_progress.level:
+//
+// 0 = Not Assessed
+// 1 = Beginner
+// 2 = Intermediate
+// 3 = Master
+//
+// IMPORTANT:
+// This level is determined by the Chapter Test,
+// NOT by the number of completed subtopic quizzes.
+$chapter_levels = [];
+
+$stmt_level = $pdo->prepare("
+    SELECT island_id, level, status
+    FROM student_progress
     WHERE student_id = ?
-      AND type = 'Chapter Test'
-    ORDER BY id ASC
 ");
-$stmt->execute([$student_id]);
-$chapterTestRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$chapterTestByIsland = [];
-foreach ($chapterTestRows as $testRow) {
-    // Later rows overwrite earlier rows, so this always keeps the latest attempt.
-    $chapterTestByIsland[(int)$testRow['island_id']] = $testRow;
+$stmt_level->execute([$student_id]);
+
+$level_rows = $stmt_level->fetchAll(PDO::FETCH_ASSOC);
+
+foreach ($level_rows as $row) {
+
+    $island_id = (int)$row['island_id'];
+
+    $chapter_levels[$island_id] = [
+        'level' => (int)$row['level'],
+        'status' => $row['status']
+    ];
 }
 
-foreach ($chapters as &$chapter) {
-    $chapterNumber = (int)$chapter['chapter_order'];
-    $test = $chapterTestByIsland[$chapterNumber] ?? null;
 
-    $chapter['chapter_test_completed'] = false;
-    $chapter['mastery_percentage'] = 0;
+// -------------------------------------------------------------------------
+// 6. Build Visible Island Data For This World
+// -------------------------------------------------------------------------
+$islands = [];
 
-    if ($test && strcasecmp((string)($test['status'] ?? ''), 'Completed') === 0) {
-        $chapter['chapter_test_completed'] = true;
+foreach ($visible_chapters as $slot => $row) {
+    $chapter_num = $world_offset + $slot + 1;
+    $position = $chapter_positions[$slot];
+    $chapter_name = $row['chapter_name'];
+    $isUnlocked = (int) $row['is_unlocked'] === 1;
 
-        $scoreText = trim((string)($test['score'] ?? ''));
-        if (preg_match('/^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/', $scoreText, $matches)) {
-            $correct = (float)$matches[1];
-            $total = (float)$matches[2];
-            $chapter['mastery_percentage'] = $total > 0
-                ? round(($correct / $total) * 100)
-                : 0;
-        } elseif (is_numeric($scoreText)) {
-            // Safe fallback in case a future version stores the percentage directly.
-            $chapter['mastery_percentage'] = max(0, min(100, round((float)$scoreText)));
+    // -------------------------------------------------------------
+    // Total number of subtopics
+    // -------------------------------------------------------------
+    $stmt_total = $pdo->prepare("
+        SELECT COUNT(DISTINCT subtopic_name)
+        FROM chapter_materials
+        WHERE chapter_name = ?
+          AND subtopic_name IS NOT NULL
+          AND TRIM(subtopic_name) != ''
+    ");
+    $stmt_total->execute([$chapter_name]);
+    $total_subtopics = (int) $stmt_total->fetchColumn();
+
+    // -------------------------------------------------------------
+    // Completed subtopic quizzes
+    // -------------------------------------------------------------
+    $completed_subtopic_numbers = [];
+
+    $stmt_completed = $pdo->prepare("
+        SELECT title
+        FROM student_assessments
+        WHERE student_id = ?
+          AND island_id = ?
+          AND type = 'Quiz'
+    ");
+
+    $stmt_completed->execute([$student_id, $chapter_num]);
+    $completed_assessments = $stmt_completed->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($completed_assessments as $assessment) {
+        $title = trim($assessment['title']);
+
+        if (preg_match('/Subtopic\s+([\d.]+)\s+Assessment/i', $title, $match)) {
+            $completed_subtopic_numbers[$match[1]] = true;
         }
     }
-}
-unset($chapter);
 
-$totalChapters = count($chapters);
-$mastered = 0;
-$totalMastery = 0;
-foreach ($chapters as $chapter) {
-    $mastery = (float)$chapter['mastery_percentage'];
-    $totalMastery += $mastery;
-    if ($mastery >= 80) $mastered++;
-}
-$overallMastery = $totalChapters > 0 ? round($totalMastery / $totalChapters) : 0;
+    $completed_subtopics = count($completed_subtopic_numbers);
+    $progress_percentage = $total_subtopics > 0
+        ? min(100, (int) round(($completed_subtopics / $total_subtopics) * 100))
+        : 0;
 
-function getIslandPosition($chapterId, $chapterOrder, $totalChapters) {
-    $islandsPerRow = 4;
-    $row = floor(($chapterOrder - 1) / $islandsPerRow);
-    $positionInRow = ($chapterOrder - 1) % $islandsPerRow;
-    $horizontalSlots = [16, 39, 62, 85];
-    $left = $horizontalSlots[$positionInRow];
-    $seed = ($chapterId * 17) + ($chapterOrder * 29) + ($totalChapters * 11);
-    $left += ($seed % 7) - 3;
-    $left = max(13, min(87, $left));
-    $top = 210 + ($row * 330) + ((($seed % 5) - 2) * 12);
-    return ['left' => $left, 'top' => $top];
-}
+    // -------------------------------------------------------------
+    // Chapter mastery level
+    // -------------------------------------------------------------
+    $level = $chapter_levels[$chapter_num]['level'] ?? 0;
 
-$rows = max(1, ceil($totalChapters / 4));
-$worldHeight = 430 + (($rows - 1) * 330);
+    if ($level === 1) {
+        $level_name = 'Beginner';
+        $level_description = 'Needs more foundational practice';
+        $level_color = 'red';
+    } elseif ($level === 2) {
+        $level_name = 'Intermediate';
+        $level_description = 'Developing understanding';
+        $level_color = 'orange';
+    } elseif ($level === 3) {
+        $level_name = 'Master';
+        $level_description = 'Strong understanding';
+        $level_color = 'green';
+    } else {
+        $level_name = 'Not Assessed';
+        $level_description = 'Chapter Test not completed';
+        $level_color = 'gray';
+    }
+
+    $islands[$chapter_num] = [
+        'name' => $position['theme_name'],
+        'topic' => $chapter_name,
+        'x' => $position['x'],
+        'y' => $position['y'],
+        'unlocked' => $isUnlocked,
+        'chapter_name' => $chapter_name,
+        'progress' => $progress_percentage,
+        'completed_subtopics' => $completed_subtopics,
+        'total_subtopics' => $total_subtopics,
+        'level' => $level,
+        'level_name' => $level_name,
+        'level_description' => $level_description,
+        'level_color' => $level_color,
+    ];
+}
 ?>
-
 <!DOCTYPE html>
-
 <html lang="en">
 
 <head>
@@ -161,2227 +224,750 @@ $worldHeight = 430 + (($rows - 1) * 330);
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>EduHunt - Learning Adventure</title>
+    <title>EduHunt - Island Math Adventure!</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <style>
-        /* =====================================================
-   GENERAL
-===================================================== */
-
-        * {
-            box-sizing: border-box;
-        }
-
-        html {
-            scroll-behavior: smooth;
-        }
-
-        body {
-
-            margin: 0;
-
-            background: #f0f4f9;
-
-            color: #2c3e50;
-
-            font-family:
-                Arial,
-                Helvetica,
-                sans-serif;
-        }
-
-
-        /* =====================================================
-   NAVBAR
-===================================================== */
-
-        .main-navbar {
-
-            height: 96px;
-
-            background: #e1e9f5;
-
-            border-bottom:
-                1px solid rgba(125, 160, 202, .25);
-
-            box-shadow:
-                0 3px 15px rgba(75, 100, 130, .10);
-
-            position: sticky;
-
-            top: 0;
-
-            z-index: 1000;
-
-            display: flex;
-
-            align-items: center;
-        }
-
-
-        .nav-inner {
-
-            width: 100%;
-
-            max-width: 1500px;
-
-            margin: auto;
-
-            padding: 0 45px;
-
-            display: grid;
-
-            grid-template-columns:
-                1fr auto 1fr;
-
-            align-items: center;
-        }
-
-
-        .brand {
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 13px;
-
-            text-decoration: none;
-
-            color: #2c3e50;
-        }
-
-
-        .brand-icon {
-
-            width: 53px;
-            height: 53px;
-
-            border-radius: 16px;
-
-            background: #cbe0f5;
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: center;
-
-            font-size: 24px;
-
-            font-weight: 900;
-        }
-
-
-        .brand-name {
-
-            font-size: 30px;
-
-            font-weight: 900;
-        }
-
-
-        .nav-links {
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 8px;
-        }
-
-
-        .nav-links a {
-
-            text-decoration: none;
-
-            color: #2c3e50;
-
-            padding: 13px 24px;
-
-            border-radius: 15px;
-
-            font-size: 18px;
-
-            font-weight: 800;
-
-            transition: .2s;
-        }
-
-
-        .nav-links a:hover {
-
-            background: #cbd9eb;
-        }
-
-
-        .nav-links a.active {
-
-            background: #7da0ca;
-
-            color: white;
-        }
-
-
-        .profile-area {
-
-            display: flex;
-
-            justify-content: flex-end;
-
-            position: relative;
-        }
-
-
-        .profile-button {
-
-            border:
-                1px solid rgba(125, 160, 202, .35);
-
-            background: white;
-
-            border-radius: 999px;
-
-            padding:
-                7px 16px 7px 8px;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 10px;
-
-            cursor: default;
-
-            color: #2c3e50;
-
-            font-weight: 800;
-
-            font-size: 16px;
-        }
-
-
-        .avatar {
-
-            width: 44px;
-            height: 44px;
-
-            border-radius: 50%;
-
-            background: #cbe0f5;
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: center;
-
-            font-size: 18px;
-
-            font-weight: 900;
-        }
-
-
-
-        /* =====================================================
-   PAGE
-===================================================== */
-
-        .page {
-
-            max-width: 1500px;
-
-            margin: auto;
-
-            padding:
-                30px 30px 60px;
-        }
-
-
-        /* =====================================================
-   STUDENT PANEL
-===================================================== */
-
-        .student-panel {
-
-            background: white;
-
-            border:
-                1px solid #dfe8f2;
-
-            border-radius: 24px;
-
-            padding:
-                22px 28px;
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: space-between;
-
-            gap: 20px;
-
-            box-shadow:
-                0 8px 25px rgba(80, 110, 140, .08);
-        }
-
-
-        .welcome {
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 15px;
-        }
-
-
-        .big-avatar {
-
-            width: 58px;
-            height: 58px;
-
-            background: #cbe0f5;
-
-            border-radius: 17px;
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: center;
-
-            font-size: 22px;
-
-            font-weight: 900;
-        }
-
-
-        .welcome h1 {
-
-            margin: 0 0 5px;
-
-            font-size: 24px;
-
-            font-weight: 900;
-        }
-
-
-        .welcome p {
-
-            margin: 0;
-
-            color: #7da0ca;
-
-            font-weight: 700;
-        }
-
-
-        .student-stats {
-
-            display: flex;
-
-            gap: 10px;
-
-            flex-wrap: wrap;
-        }
-
-
-        .stat-pill {
-
-            background: #f0f4f9;
-
-            border:
-                1px solid #e1e9f5;
-
-            border-radius: 14px;
-
-            padding:
-                11px 16px;
-
-            font-size: 15px;
-
-            font-weight: 800;
-        }
-
-
-        /* =====================================================
-   HEADING
-===================================================== */
-
-        .map-heading {
-
-            text-align: center;
-
-            margin:
-                30px 0 18px;
-        }
-
-
-        .map-heading h2 {
-
-            margin: 0;
-
-            font-size: 31px;
-
-            font-weight: 900;
-        }
-
-
-        .map-heading p {
-
-            color: #688dbb;
-
-            font-size: 16px;
-
-            font-weight: 700;
-
-            margin-top: 7px;
-        }
-
-
-        /* =====================================================
-   WORLD
-===================================================== */
-
-        .adventure-world {
-
-            position: relative;
-
-            width: 100%;
-
-            height: <?= (int)$worldHeight ?>px;
-
-            overflow: hidden;
-
-            border-radius: 34px;
-
-            border: 7px solid white;
-
-            background:
-
-                radial-gradient(circle at 13% 18%,
-                    rgba(255, 255, 255, .18),
-                    transparent 20%),
-
-                radial-gradient(circle at 88% 78%,
-                    rgba(255, 255, 255, .12),
-                    transparent 18%),
-
-                linear-gradient(180deg,
-                    #a9dfeb 0%,
-                    #88cedf 55%,
-                    #78c3d7 100%);
-
-            box-shadow:
-                0 14px 35px rgba(70, 110, 140, .17);
-        }
-
-
-        .water-lines {
-
-            position: absolute;
-
-            inset: 0;
-
-            opacity: .15;
-
-            background-image:
-                radial-gradient(ellipse,
-                    transparent 48%,
-                    white 50%,
-                    transparent 53%);
-
-            background-size:
-                160px 48px;
-
-            pointer-events: none;
-        }
-
-
-        /* =====================================================
-   CLOUDS
-===================================================== */
-
-        .cloud {
-
-            position: absolute;
-
-            width: 100px;
-            height: 28px;
-
-            background:
-                rgba(255, 255, 255, .38);
-
-            border-radius: 999px;
-
-            z-index: 1;
-        }
-
-
-        .cloud::before,
-        .cloud::after {
-
-            content: "";
-
-            position: absolute;
-
-            background: inherit;
-
-            border-radius: 50%;
-        }
-
-
-        .cloud::before {
-
-            width: 42px;
-            height: 42px;
-
-            left: 17px;
-            top: -18px;
-        }
-
-
-        .cloud::after {
-
-            width: 52px;
-            height: 52px;
-
-            right: 10px;
-            top: -26px;
-        }
-
-
-        /* =====================================================
-   ISLAND
-===================================================== */
-
-        .island {
-
-            position: absolute;
-
-            width: 255px;
-            height: 200px;
-
-            transform:
-                translate(-50%, -50%);
-
-            z-index: 10;
-        }
-
-
-        .island-shadow {
-
-            position: absolute;
-
-            width: 205px;
-            height: 52px;
-
-            left: 25px;
-            bottom: 5px;
-
-            background:
-                rgba(52, 110, 132, .18);
-
-            border-radius: 50%;
-
-            filter: blur(6px);
-
-            z-index: 1;
-        }
-
-
-        /* =====================================================
-   ROCK
-===================================================== */
-
-        .island-rock {
-
-            position: absolute;
-
-            width: 205px;
-            height: 105px;
-
-            left: 25px;
-            top: 75px;
-
-            background:
-                linear-gradient(160deg,
-                    #c7a185,
-                    #9b7963 55%,
-                    #765c4d);
-
-            clip-path:
-                polygon(4% 0,
-                    96% 0,
-                    89% 45%,
-                    75% 77%,
-                    58% 98%,
-                    42% 98%,
-                    25% 78%,
-                    11% 45%);
-
-            filter:
-                drop-shadow(0 8px 5px rgba(60, 80, 90, .18));
-
-            z-index: 2;
-        }
-
-
-        .island-rock::after {
-
-            content: "";
-
-            position: absolute;
-
-            width: 15px;
-            height: 28px;
-
-            left: 52px;
-            top: 48px;
-
-            border-radius: 50%;
-
-            background:
-                rgba(255, 255, 255, .13);
-
-            transform:
-                rotate(25deg);
-
-            box-shadow:
-                70px 10px 0 rgba(255, 255, 255, .08),
-                105px -6px 0 rgba(255, 255, 255, .09);
-        }
-
-
-        /* =====================================================
-   LAND
-===================================================== */
-
-        .island-land {
-
-            position: absolute;
-
-            width: 230px;
-            height: 108px;
-
-            left: 12px;
-            top: 42px;
-
-            border-radius: 50%;
-
-            background:
-                radial-gradient(circle at 35% 28%,
-                    rgba(255, 255, 255, .25),
-                    transparent 22%),
-                linear-gradient(145deg,
-                    #a9dda0,
-                    #78bf75);
-
-            border:
-                7px solid #c7e8b6;
-
-            box-shadow:
-                inset 0 -11px 0 rgba(68, 129, 70, .12),
-                0 5px 10px rgba(45, 90, 75, .10);
-
-            z-index: 3;
-        }
-
-
-        .island-land::after {
-
-            content: "";
-
-            position: absolute;
-
-            width: 11px;
-            height: 6px;
-
-            background:
-                rgba(255, 255, 255, .25);
-
-            border-radius: 50%;
-
-            left: 36px;
-            top: 28px;
-
-            box-shadow:
-                28px 39px 0 rgba(255, 255, 255, .18),
-                93px 7px 0 rgba(255, 255, 255, .18),
-                132px 43px 0 rgba(255, 255, 255, .15),
-                155px 15px 0 rgba(255, 255, 255, .15);
-        }
-
-
-        /* =====================================================
-   CHAPTER BUTTON
-   BACK IN THE MIDDLE
-===================================================== */
-
-        .chapter-button {
-
-            position: absolute;
-
-            left: 50%;
-
-            top: 62px;
-
-            transform:
-                translateX(-50%);
-
-            z-index: 60;
-
-            width: 70px;
-            height: 70px;
-
-            border-radius: 50%;
-
-            border:
-                6px solid rgba(255, 255, 255, .95);
-
-            display: flex;
-
-            align-items: center;
-
-            justify-content: center;
-
-            text-decoration: none;
-
-            font-size: 27px;
-
-            font-weight: 900;
-
-            box-shadow:
-                0 7px 0 rgba(66, 85, 100, .14),
-                0 12px 20px rgba(55, 85, 105, .20);
-
-            animation:
-                levelBounce 2.1s ease-in-out infinite;
-
-            transition:
-                filter .2s,
-                box-shadow .2s;
-        }
-
-
-        @keyframes levelBounce {
-
-            0%,
-            100% {
-
-                transform:
-                    translateX(-50%) translateY(0);
-            }
-
-            50% {
-
-                transform:
-                    translateX(-50%) translateY(-8px);
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        pastel: {
+                            bg: '#f0f4f9',
+                            card: '#ffffff',
+                            nav: '#e1e9f5',
+                            primary: '#7da0ca',
+                            hover: '#688dbb',
+                            text: '#2c3e50',
+                            badge: '#cbe0f5'
+                        }
+                    }
+                }
             }
         }
-
-
-        .chapter-button:hover {
-
-            animation-play-state: paused;
-
-            transform:
-                translateX(-50%) translateY(-8px) scale(1.08);
-
-            filter:
-                brightness(1.04);
-
-            box-shadow:
-                0 8px 0 rgba(66, 85, 100, .13),
-                0 16px 26px rgba(55, 85, 105, .25);
-        }
-
-
-        /* =====================================================
-   PASTEL STATUS COLORS
-===================================================== */
-
-        .status-red {
-
-            background:
-                linear-gradient(145deg,
-                    #f5a5aa,
-                    #e9868f);
-
-            color: white;
-        }
-
-
-        .status-yellow {
-
-            background:
-                linear-gradient(145deg,
-                    #f8db91,
-                    #efc96f);
-
-            color: #6d5724;
-        }
-
-
-        .status-green {
-
-            background:
-                linear-gradient(145deg,
-                    #a2ddb5,
-                    #76c596);
-
-            color: white;
-        }
-
-
-        /* =====================================================
-   TREES
-===================================================== */
-
-        .tree {
-
-            position: absolute;
-
-            width: 12px;
-            height: 36px;
-
-            background: #8b694e;
-
-            border-radius: 5px;
-
-            z-index: 15;
-        }
-
-
-        .tree::before {
-
-            content: "";
-
-            position: absolute;
-
-            width: 38px;
-            height: 38px;
-
-            left: -13px;
-            top: -24px;
-
-            border-radius: 50%;
-
-            background: #70b77c;
-
-            box-shadow:
-                13px 4px 0 #8bc996,
-                -9px 6px 0 #60a96d,
-                3px -8px 0 #9ad3a3;
-        }
-
-
-        .tree-one {
-
-            left: 45px;
-            top: 73px;
-
-            transform:
-                scale(.78);
-        }
-
-
-        .tree-two {
-
-            right: 43px;
-            top: 79px;
-
-            transform:
-                scale(.63);
-        }
-
-
-        .tree-three {
-
-            left: 75px;
-            top: 96px;
-
-            transform:
-                scale(.45);
-        }
-
-
-        /* =====================================================
-   FLOWERS
-===================================================== */
-
-        .flower {
-
-            position: absolute;
-
-            width: 7px;
-            height: 7px;
-
-            border-radius: 50%;
-
-            background: #fff3a8;
-
-            left: 80px;
-            top: 103px;
-
-            z-index: 16;
-
-            box-shadow:
-                18px -9px 0 #f6aac8,
-                37px 3px 0 #ffffff,
-                73px -14px 0 #f8b1c9,
-                91px 3px 0 #ffe79a,
-                109px -10px 0 #d9b5ef,
-                126px 5px 0 #ffffff;
-        }
-
-
-        /* =====================================================
-   BUSHES
-===================================================== */
-
-        .bush {
-
-            position: absolute;
-
-            width: 29px;
-            height: 18px;
-
-            border-radius: 50%;
-
-            background: #6dae78;
-
-            z-index: 14;
-        }
-
-
-        .bush::before,
-        .bush::after {
-
-            content: "";
-
-            position: absolute;
-
-            width: 21px;
-            height: 20px;
-
-            border-radius: 50%;
-
-            background: inherit;
-        }
-
-
-        .bush::before {
-
-            left: -9px;
-            top: 3px;
-        }
-
-
-        .bush::after {
-
-            right: -8px;
-            top: 4px;
-        }
-
-
-        .bush-one {
-
-            right: 54px;
-            top: 105px;
-        }
-
-
-        .bush-two {
-
-            left: 105px;
-            top: 112px;
-
-            transform:
-                scale(.65);
-        }
-
-
-        /* =====================================================
-   MUSHROOM
-===================================================== */
-
-        .mushroom {
-
-            position: absolute;
-
-            width: 9px;
-            height: 14px;
-
-            background: #f4eadb;
-
-            left: 91px;
-            top: 115px;
-
-            z-index: 18;
-        }
-
-
-        .mushroom::before {
-
-            content: "";
-
-            position: absolute;
-
-            width: 24px;
-            height: 13px;
-
-            left: -7px;
-            top: -7px;
-
-            border-radius:
-                50% 50% 35% 35%;
-
-            background: #e98c91;
-        }
-
-
-        /* =====================================================
-   PEBBLES
-===================================================== */
-
-        .pebble {
-
-            position: absolute;
-
-            width: 15px;
-            height: 9px;
-
-            background: #b7b5ae;
-
-            border-radius: 50%;
-
-            z-index: 13;
-        }
-
-
-        .pebble-one {
-
-            left: 54px;
-            top: 119px;
-
-            transform:
-                rotate(-10deg);
-        }
-
-
-        .pebble-two {
-
-            right: 72px;
-            top: 120px;
-
-            transform:
-                rotate(15deg) scale(.75);
-        }
-
-
-        /* =====================================================
-   CHERRY THEME
-===================================================== */
-
-        .theme-cherry .island-land {
-
-            background:
-                linear-gradient(145deg,
-                    #b8dfa7,
-                    #83c88a);
-
-            border-color:
-                #f4c7db;
-        }
-
-
-        .theme-cherry .tree::before {
-
-            background: #efb1cd;
-
-            box-shadow:
-                13px 4px 0 #f5c5da,
-                -9px 6px 0 #e79ebe,
-                3px -8px 0 #f9d4e3;
-        }
-
-
-        /* =====================================================
-   OCEAN THEME
-===================================================== */
-
-        .theme-ocean .island-land {
-
-            background:
-                linear-gradient(145deg,
-                    #9be2bc,
-                    #64c7a0);
-
-            border-color:
-                #f7e2a2;
-        }
-
-
-        .theme-ocean .tree {
-
-            display: none;
-        }
-
-
-        .theme-ocean .palm {
-
-            display: block;
-        }
-
-
-        /* =====================================================
-   PALM
-===================================================== */
-
-        .palm {
-
-            display: none;
-
-            position: absolute;
-
-            width: 12px;
-            height: 50px;
-
-            background: #96724c;
-
-            left: 49px;
-            top: 72px;
-
-            border-radius: 5px;
-
-            z-index: 18;
-
-            transform:
-                rotate(-7deg);
-        }
-
-
-        .palm::before {
-
-            content: "";
-
-            position: absolute;
-
-            width: 55px;
-            height: 17px;
-
-            left: -22px;
-            top: -10px;
-
-            border-radius:
-                100% 10% 100% 10%;
-
-            background: #70bf8a;
-
-            transform:
-                rotate(20deg);
-
-            box-shadow:
-                4px 4px 0 #86cd99;
-        }
-
-
-        .palm::after {
-
-            content: "";
-
-            position: absolute;
-
-            width: 55px;
-            height: 17px;
-
-            left: -17px;
-            top: -7px;
-
-            border-radius:
-                10% 100% 10% 100%;
-
-            background: #61ae7b;
-
-            transform:
-                rotate(-28deg);
-        }
-
-
-        /* =====================================================
-   DESERT
-===================================================== */
-
-        .theme-desert .island-land {
-
-            background:
-                linear-gradient(145deg,
-                    #f5dea3,
-                    #e9c56f);
-
-            border-color:
-                #ffeab4;
-        }
-
-
-        .theme-desert .island-rock {
-
-            background:
-                linear-gradient(160deg,
-                    #d29a72,
-                    #a8725a);
-        }
-
-
-        .theme-desert .tree,
-        .theme-desert .bush,
-        .theme-desert .mushroom {
-
-            display: none;
-        }
-
-
-        .theme-desert .cactus {
-
-            display: block;
-        }
-
-
-        /* =====================================================
-   CACTUS
-===================================================== */
-
-        .cactus {
-
-            display: none;
-
-            position: absolute;
-
-            width: 14px;
-            height: 43px;
-
-            left: 55px;
-            top: 80px;
-
-            background: #7bb887;
-
-            border-radius: 8px;
-
-            z-index: 18;
-        }
-
-
-        .cactus::before {
-
-            content: "";
-
-            position: absolute;
-
-            width: 17px;
-            height: 12px;
-
-            left: -11px;
-            top: 15px;
-
-            border-left:
-                6px solid #7bb887;
-
-            border-bottom:
-                6px solid #7bb887;
-
-            border-radius:
-                0 0 0 10px;
-        }
-
-
-        .cactus::after {
-
-            content: "";
-
-            position: absolute;
-
-            width: 17px;
-            height: 12px;
-
-            right: -11px;
-            top: 8px;
-
-            border-right:
-                6px solid #7bb887;
-
-            border-bottom:
-                6px solid #7bb887;
-
-            border-radius:
-                0 0 10px 0;
-        }
-
-
-        /* =====================================================
-   FOREST
-===================================================== */
-
-        .theme-forest .island-land {
-
-            background:
-                linear-gradient(145deg,
-                    #93cf8b,
-                    #60ad6d);
-
-            border-color:
-                #b7dfa5;
-        }
-
-
-        .theme-forest .tree::before {
-
-            background: #579965;
-
-            box-shadow:
-                13px 4px 0 #70ad79,
-                -9px 6px 0 #4a8857,
-                3px -8px 0 #82ba88;
-        }
-
-
-        /* =====================================================
-   SNOW
-===================================================== */
-
-        .theme-snow .island-land {
-
-            background:
-                linear-gradient(145deg,
-                    #eefbfc,
-                    #cbeaf0);
-
-            border-color:
-                white;
-        }
-
-
-        .theme-snow .island-rock {
-
-            background:
-                linear-gradient(160deg,
-                    #c0cbd3,
-                    #8fa4b1);
-        }
-
-
-        .theme-snow .tree::before {
-
-            background: #f7ffff;
-
-            box-shadow:
-                13px 4px 0 #e3f3f5,
-                -9px 6px 0 #ffffff,
-                3px -8px 0 #d3edf1;
-        }
-
-
-        .theme-snow .snowman {
-
-            display: block;
-        }
-
-
-        /* =====================================================
-   SNOWMAN
-===================================================== */
-
-        .snowman {
-
-            display: none;
-
-            position: absolute;
-
-            width: 26px;
-            height: 26px;
-
-            right: 52px;
-            top: 102px;
-
-            background: white;
-
-            border-radius: 50%;
-
-            z-index: 20;
-
-            box-shadow:
-                0 -17px 0 -5px white;
-        }
-
-
-        /* =====================================================
-   CANDY
-===================================================== */
-
-        .theme-candy .island-land {
-
-            background:
-                linear-gradient(145deg,
-                    #dcb8ed,
-                    #bd8edb);
-
-            border-color:
-                #f7d1ea;
-        }
-
-
-        .theme-candy .island-rock {
-
-            background:
-                linear-gradient(160deg,
-                    #d7b0c8,
-                    #a780a1);
-        }
-
-
-        .theme-candy .tree::before {
-
-            background: #f0b4d1;
-
-            box-shadow:
-                13px 4px 0 #f6c7de,
-                -9px 6px 0 #daa5e7,
-                3px -8px 0 #ffd8e8;
-        }
-
-
-        /* =====================================================
-   SUNSET
-===================================================== */
-
-        .theme-sunset .island-land {
-
-            background:
-                linear-gradient(145deg,
-                    #f7c28c,
-                    #e9948b);
-
-            border-color:
-                #f9d9af;
-        }
-
-
-        .theme-sunset .tree::before {
-
-            background: #e8a7b6;
-
-            box-shadow:
-                13px 4px 0 #f4b9c2,
-                -9px 6px 0 #d895ae,
-                3px -8px 0 #f3cfaa;
-        }
-
-
-        /* =====================================================
-   VOLCANO
-===================================================== */
-
-        .theme-volcano .island-land {
-
-            background:
-                linear-gradient(145deg,
-                    #a3ad82,
-                    #75835e);
-
-            border-color:
-                #e7b07e;
-        }
-
-
-        .theme-volcano .island-rock {
-
-            background:
-                linear-gradient(160deg,
-                    #8a6f67,
-                    #5e514e);
-        }
-
-
-        .theme-volcano .tree {
-
-            display: none;
-        }
-
-
-        .theme-volcano .volcano {
-
-            display: block;
-        }
-
-
-        .volcano {
-
-            display: none;
-
-            position: absolute;
-
-            width: 67px;
-            height: 51px;
-
-            left: 38px;
-            top: 91px;
-
-            z-index: 17;
-
-            background:
-                linear-gradient(150deg,
-                    #80645c,
-                    #504544);
-
-            clip-path:
-                polygon(50% 0,
-                    100% 100%,
-                    0 100%);
-        }
-
-
-        .volcano::before {
-
-            content: "";
-
-            position: absolute;
-
-            width: 24px;
-            height: 8px;
-
-            left: 21px;
-            top: 6px;
-
-            background: #ef9a79;
-
-            border-radius: 50%;
-
-            box-shadow:
-                0 -5px 9px rgba(240, 142, 107, .55);
-        }
-
-
-        /* =====================================================
-   ISLAND INFO
-===================================================== */
-
-        .island-info {
-
-            position: absolute;
-
-            left: 50%;
-
-            top: 159px;
-
-            transform:
-                translateX(-50%);
-
-            width: 210px;
-
-            padding:
-                8px 11px;
-
-            background:
-                rgba(255, 255, 255, .95);
-
-            border:
-                2px solid rgba(255, 255, 255, .9);
-
-            border-radius: 15px;
-
-            text-align: center;
-
-            box-shadow:
-                0 7px 16px rgba(55, 85, 100, .13);
-
-            z-index: 50;
-        }
-
-
-        .island-info strong {
-
-            display: block;
-
-            font-size: 14px;
-
-            line-height: 1.2;
-
-            font-weight: 900;
-        }
-
-
-        .island-info span {
-
-            display: block;
-
-            margin-top: 3px;
-
-            color: #7893b3;
-
-            font-size: 12px;
-
-            font-weight: 800;
-        }
-
-
-        /* =====================================================
-   LEGEND
-===================================================== */
-
-        .legend {
-
-            margin-top: 20px;
-
-            background: white;
-
-            border:
-                1px solid #e1e9f5;
-
-            border-radius: 20px;
-
-            padding:
-                17px 24px;
-
-            display: flex;
-
-            justify-content: center;
-
-            align-items: center;
-
-            flex-wrap: wrap;
-
-            gap: 28px;
-
-            box-shadow:
-                0 6px 18px rgba(80, 110, 140, .07);
-        }
-
-
-        .legend-title {
-
-            font-weight: 900;
-        }
-
-
-        .legend-item {
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 8px;
-
-            font-weight: 800;
-
-            font-size: 14px;
-        }
-
-
-        .legend-dot {
-
-            width: 17px;
-            height: 17px;
-
-            border-radius: 50%;
-        }
-
-
-        .legend-red {
-
-            background: #f5a5aa;
-        }
-
-
-        .legend-yellow {
-
-            background: #f8db91;
-        }
-
-
-        .legend-green {
-
-            background: #a2ddb5;
-        }
-
-
-        /* =====================================================
-   RESPONSIVE
-===================================================== */
-
-        @media (max-width: 1000px) {
-
-            .nav-inner {
-
-                grid-template-columns:
-                    auto 1fr;
-            }
-
-            .nav-links {
-
-                display: none;
-            }
-
-            .profile-area {
-
-                justify-self: end;
-            }
-
-            .student-panel {
-
-                flex-direction: column;
-
-                align-items: flex-start;
-            }
-
-            .island {
-
-                transform:
-                    translate(-50%, -50%) scale(.80);
-            }
-        }
-
-
-        @media (max-width: 650px) {
-
-            .page {
-
-                padding:
-                    20px 10px 45px;
-            }
-
-            .brand-name {
-
-                font-size: 23px;
-            }
-
-            .profile-name {
-
-                display: none;
-            }
-
-            .island {
-
-                transform:
-                    translate(-50%, -50%) scale(.68);
-            }
-        }
-    </style>
+    </script>
+
+
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.css"
+        rel="stylesheet"
+    />
+
+        <style>
+         .main-navbar {
+    height: 96px;
+    background: #e1e9f5;
+    border-bottom: 1px solid rgba(125, 160, 202, .25);
+    box-shadow: 0 3px 15px rgba(75, 100, 130, .10);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    align-self: stretch;
+}
+
+.nav-inner {
+    width: 100%;
+    max-width: 1500px;
+    margin: auto;
+    padding: 0 45px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    text-decoration: none;
+    color: #2c3e50;
+}
+
+.brand-icon {
+    width: 53px;
+    height: 53px;
+    border-radius: 16px;
+    background: #cbe0f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 900;
+}
+
+.brand-name {
+    font-size: 30px;
+    font-weight: 900;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: #2c3e50;
+    padding: 13px 24px;
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: 800;
+    transition: .2s;
+}
+
+.nav-links a:hover {
+    background: #cbd9eb;
+}
+
+.nav-links a.active {
+    background: #7da0ca;
+    color: white;
+}
+
+.profile-area {
+    display: flex;
+    justify-content: flex-end;
+    position: relative;
+}
+
+.profile-button {
+    border: 1px solid rgba(125, 160, 202, .35);
+    background: white;
+    border-radius: 999px;
+    padding: 7px 16px 7px 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: default;
+    color: #2c3e50;
+    font-weight: 800;
+    font-size: 16px;
+}
+
+.avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #cbe0f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 900;
+}
+
+@media (max-width: 1000px) {
+    .nav-inner {
+        grid-template-columns: auto 1fr;
+    }
+
+    .nav-links {
+        display: none;
+    }
+
+    .profile-area {
+        justify-self: end;
+    }
+}
+
+@media (max-width: 650px) {
+    .brand-name {
+        font-size: 23px;
+    }
+
+    .profile-name {
+        display: none;
+    }
+}
+</style>
 
 </head>
 
 
-<body>
+<body
+    class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center justify-start"
+>
+<!-- ============================================================= -->
+<!-- NAVBAR -->
+<!-- ============================================================= -->
+<nav class="main-navbar">
 
+    <div class="nav-inner">
 
-    <!-- ======================================================
-     NAVBAR
-====================================================== -->
+        <a href="index.php" class="brand">
+            <div class="brand-icon">
+                E
+            </div>
 
-    <nav class="main-navbar">
+            <div class="brand-name">
+                EduHunt
+            </div>
+        </a>
 
-        <div class="nav-inner">
+        <div class="nav-links">
 
-
-            <a href="index.php" class="brand">
-
-                <div class="brand-icon">
-                    E
-                </div>
-
-                <div class="brand-name">
-                    EduHunt
-                </div>
-
+            <a href="index.php" class="active">
+                Home
             </a>
 
+            <a href="discussion.php">
+                Discussion
+            </a>
 
-            <div class="nav-links">
+            <a href="module.php">
+                Modules
+            </a>
 
-                <a href="index.php" class="active">
-                    Home
-                </a>
+            <a href="mathhelper.php">
+                Math Helper
+            </a>
 
-                <a href="discussion.php">
-                    Discussion
-                </a>
-
-                <a href="module.php">
-                    Modules
-                </a>
-
-                <a href="quiz.php">
-                    Quizzes
-                </a>
-
-                <a href="history.php">
-                    History
-                </a>
-
-            </div>
-
-
-            <div class="profile-area">
-                <div class="profile-button">
-                    <div class="avatar">
-                        <?= htmlspecialchars(
-                            strtoupper(
-                                substr(
-                                    $student['full_name'],
-                                    0,
-                                    1
-                                )
-                            )
-                        ) ?>
-                    </div>
-
-                    <span class="profile-name">
-                        <?= htmlspecialchars(
-                            $student['full_name']
-                        ) ?>
-                    </span>
-                </div>
-            </div>
+            <a href="history.php">
+                History
+            </a>
 
         </div>
 
-    </nav>
+        <div class="profile-area">
+            <div class="profile-button">
 
-
-    <!-- ======================================================
-     PAGE
-====================================================== -->
-
-    <main class="page">
-
-
-        <section class="student-panel">
-
-            <div class="welcome">
-
-                <div class="big-avatar">
-
+                <div class="avatar">
                     <?= htmlspecialchars(
                         strtoupper(
                             substr(
-                                $student['full_name'],
+                                $student['name'],
                                 0,
                                 1
                             )
                         )
                     ) ?>
-
                 </div>
 
+                <span class="profile-name">
+                    <?= htmlspecialchars($student['name']) ?>
+                </span>
 
-                <div>
+            </div>
+        </div>
 
-                    <h1>
+    </div>
 
-                        Welcome back,
-                        <?= htmlspecialchars(
-                            explode(
-                                ' ',
-                                $student['full_name']
-                            )[0]
-                        ) ?>!
+</nav>
 
-                    </h1>
 
-                    <p>
+    <!-- ============================================================= -->
+    <!-- HEADER / BANNER -->
+    <!-- ============================================================= -->
 
-                        <?= htmlspecialchars(
-                            $classroom['class_name']
-                        ) ?>
+<div
+    class="w-full max-w-[85rem] flex justify-between items-center mt-10 mb-4 bg-pastel-card border border-pastel-nav px-6 py-3.5 rounded-2xl shadow-md"
+>
 
-                    </p>
+        <div class="flex items-center space-x-3">
 
-                </div>
-
+            <div
+                class="w-10 h-10 rounded-xl bg-pastel-badge border border-pastel-nav flex items-center justify-center font-black text-pastel-text text-base"
+            >
+                <?= strtoupper(substr($student['name'], 0, 1)) ?>
             </div>
 
 
-            <div class="student-stats">
+            <div>
 
-                <div class="stat-pill">
+<h1
+    class="text-xl font-black text-pastel-text flex items-center gap-1.5"
+>
+                    Ahoy,
+                    <?= htmlspecialchars($student['name']) ?>!
+                    <span class="text-2xl leading-none">🏴‍☠️</span>
+                </h1>
 
-                    <?= $mastered ?>
-                    /
-                    <?= $totalChapters ?>
-                    Mastered
 
-                </div>
-
-                <div class="stat-pill">
-
-                    <?= $overallMastery ?>%
-                    Mastery
-
-                </div>
+                <p class="text-xs font-semibold text-pastel-primary">
+                    Ready to conquer your Year 4 Math Islands?
+                </p>
 
             </div>
-
-        </section>
-
-
-        <div class="map-heading">
-
-            <h2>
-                Your Learning Adventure
-            </h2>
-
-            <p>
-                Explore every island and master each chapter.
-            </p>
 
         </div>
 
 
-        <!-- ======================================================
-     ADVENTURE WORLD
-====================================================== -->
+        <div
+            class="flex items-center space-x-3 text-sm font-bold"
+        >
 
-        <div class="adventure-world">
+            <!-- XP LEVEL -->
 
-            <div class="water-lines"></div>
-
-
-            <div class="cloud" style="
-            left:5%;
-            top:50px;
-            transform:scale(.65);
-        "></div>
+            <div
+                class="bg-pastel-bg text-pastel-text px-3 py-1.5 rounded-xl border border-pastel-nav flex items-center gap-1.5"
+            >
+                ⭐ XP Level <?= $student['xp_level'] ?>
+            </div>
 
 
-            <div class="cloud" style="
-            right:7%;
-            top:55px;
-            transform:scale(.55);
-        "></div>
+            <!-- XP -->
+
+            <div
+                class="bg-pastel-bg text-pastel-text px-3 py-1.5 rounded-xl border border-pastel-nav flex items-center gap-1.5"
+            >
+                🪙 <?= (int)$student['xp'] ?> XP
+            </div>
+
+        </div>
+
+    </div>
 
 
-            <?php if (!$chapters): ?>
+    <!-- ============================================================= -->
+    <!-- WORLD NAVIGATION -->
+    <!-- ============================================================= -->
+    <div class="w-full max-w-[85rem] flex items-center justify-between mt-3 mb-3 px-1">
+        <div>
+            <div class="text-lg font-black text-pastel-text">
+                World <?= $current_world ?>
+            </div>
+            <div class="text-xs font-semibold text-pastel-primary">
+                <?php if ($total_chapters > 0): ?>
+                    Chapters <?= $world_offset + 1 ?>-<?= min($world_offset + $chapters_per_world, $total_chapters) ?> of <?= $total_chapters ?>
+                <?php else: ?>
+                    No chapters have been added yet.
+                <?php endif; ?>
+            </div>
+        </div>
 
-                <div style="
-                position:absolute;
-                left:50%;
-                top:50%;
-                transform:translate(-50%,-50%);
-                background:white;
-                padding:28px;
-                border-radius:20px;
-                text-align:center;
-                font-weight:900;
-            ">
+        <?php if ($total_worlds > 1): ?>
+            <div class="flex items-center gap-2">
+                <?php if ($current_world > 1): ?>
+                    <a href="?world=<?= $current_world - 1 ?>"
+                       class="px-4 py-2 rounded-xl bg-white border border-pastel-nav font-black text-sm text-pastel-text hover:bg-pastel-nav transition">
+                        ← Previous World
+                    </a>
+                <?php endif; ?>
 
-                    Your teacher has not added any chapters yet.
+                <span class="px-4 py-2 rounded-xl bg-pastel-primary text-white font-black text-sm">
+                    <?= $current_world ?> / <?= $total_worlds ?>
+                </span>
 
+                <?php if ($current_world < $total_worlds): ?>
+                    <a href="?world=<?= $current_world + 1 ?>"
+                       class="px-4 py-2 rounded-xl bg-white border border-pastel-nav font-black text-sm text-pastel-text hover:bg-pastel-nav transition">
+                        Next World →
+                    </a>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- MAP CONTAINER -->
+    <!-- ============================================================= -->
+
+    <div
+        class="relative w-full max-w-[85rem] aspect-[16/8.5] rounded-2xl overflow-hidden border-4 border-pastel-card shadow-xl bg-pastel-bg"
+    >
+
+        <img
+            src="/Quality-Education/src/student/map.jpeg"
+            alt="EduHunt Map"
+            class="absolute inset-0 w-full h-full object-cover select-none z-0"
+        >
+
+
+        <?php if (empty($islands)): ?>
+            <div class="absolute inset-0 z-20 flex items-center justify-center">
+                <div class="bg-white/95 border border-pastel-nav rounded-2xl shadow-xl px-7 py-5 text-center">
+                    <div class="text-lg font-black text-pastel-text">No chapters yet</div>
+                    <div class="text-sm font-semibold text-slate-500 mt-1">Your teacher can add chapters from the classroom page.</div>
                 </div>
+            </div>
+        <?php endif; ?>
 
-            <?php endif; ?>
+        <?php foreach ($islands as $id => $island): ?>
 
+            <?php
 
-            <?php foreach (
-                $chapters as $index => $chapter
-            ): ?>
+            $isUnlocked = $island['unlocked'];
 
+            $progress = $island['progress'];
 
-                <?php
+            $levelName = $island['level_name'];
 
-                $chapterNumber =
-                    $index + 1;
+            $levelDescription = $island['level_description'];
 
+            $levelColor = $island['level_color'];
 
-                $mastery =
-                    round(
-                        (float) $chapter[
-                            'mastery_percentage'
-                        ]
-                    );
 
+            // ---------------------------------------------------------
+            // Pin style based on mastery level
+            // ---------------------------------------------------------
 
-                // ===============================================
-                // STATUS
-                // ===============================================
-            
-                if (empty($chapter['chapter_test_completed'])) {
+            if (!$isUnlocked) {
 
-                    // Chapter Test has not been completed yet.
-                    $statusClass =
-                        'status-red';
+                $pinColor =
+                    "bg-slate-200 border-white text-slate-400 cursor-not-allowed shadow-md";
 
-                    $statusText =
-                        'Not Done';
+            } elseif ($levelColor === 'red') {
 
-                } elseif ($mastery >= 80) {
+                $pinColor =
+                    "bg-rose-200 border-rose-400 text-rose-700 hover:bg-rose-200 cursor-pointer hover:scale-110 shadow-rose-200/50 shadow-lg";
 
-                    // 80% and above = green.
-                    $statusClass =
-                        'status-green';
+            } elseif ($levelColor === 'orange') {
 
-                    $statusText =
-                        'Mastered';
+                $pinColor =
+                    "bg-orange-200 border-orange-400 text-orange-700 hover:bg-orange-200 cursor-pointer hover:scale-110 shadow-orange-200/50 shadow-lg";
 
-                } elseif ($mastery <= 40) {
+            } elseif ($levelColor === 'green') {
 
-                    // 40% and below = red.
-                    $statusClass =
-                        'status-red';
+                $pinColor =
+                    "bg-emerald-500 border-white text-white hover:bg-emerald-400 cursor-pointer hover:scale-110 shadow-emerald-500/50 shadow-lg";
 
-                    $statusText =
-                        'Needs Practice';
+            } else {
 
-                } else {
+                // Not Assessed
+                $pinColor =
+                    "bg-slate-200 border-slate-300 text-slate-600 hover:bg-slate-200 cursor-pointer hover:scale-110 shadow-slate-200/50 shadow-lg";
+            }
 
-                    // 41% to 79% = yellow.
-                    $statusClass =
-                        'status-yellow';
+            ?>
 
-                    $statusText =
-                        'Needs Practice';
-                }
 
+            <!-- ===================================================== -->
+            <!-- ISLAND PIN -->
+            <!-- ===================================================== -->
 
-                // ===============================================
-                // POSITION
-                // ===============================================
-            
-                $position =
-                    getIslandPosition(
-                        $chapter['id'],
-                        $chapterNumber,
-                        $totalChapters
-                    );
+            <div
+                class="absolute transform -translate-x-1/2 -translate-y-1/2 z-30"
+                style="
+                    left: <?= $island['x'] ?>%;
+                    top: <?= $island['y'] ?>%;
+                "
+            >
 
 
-                // ===============================================
-                // THEMES
-                // ===============================================
-            
-                $allowedThemes = [
-                    'cherry',
-                    'ocean',
-                    'desert',
-                    'forest',
-                    'snow',
-                    'volcano',
-                    'candy',
-                    'sunset'
-                ];
+                <?php if ($isUnlocked): ?>
 
 
-                $theme =
-                    strtolower(
-                        $chapter['island_theme']
-                        ?? ''
-                    );
+                    <!-- CLICKABLE CHAPTER -->
 
+                    <a
+                        href="module.php?chap=<?= $id ?>"
+                        class="flex flex-col items-center group"
+                    >
 
-                /*
-                 * If the database theme is missing,
-                 * automatically cycle through the
-                 * different island designs.
-                 */
 
-                if (
-                    !in_array(
-                        $theme,
-                        $allowedThemes
-                    )
-                ) {
+                        <!-- ------------------------------------------------ -->
+                        <!-- Circular Progress -->
+                        <!-- ------------------------------------------------ -->
 
-                    $theme =
-                        $allowedThemes[
-                            $index
-                            %
-                            count($allowedThemes)
-                        ];
-                }
+                        <div
+                            class="w-16 h-16 rounded-full p-[4px] shadow-lg transition-all duration-200 group-hover:scale-110"
+style="
+    background: conic-gradient(
+        <?= $levelColor === 'red'
+            ? '#f43f5e'
+            : ($levelColor === 'orange'
+                ? '#f97316'
+                : ($levelColor === 'green'
+                    ? '#10b981'
+                    : '#94a3b8'))
+        ?>
+        <?= $progress ?>%,
+        #e2e8f0 <?= $progress ?>%
+    );
+"
+                        >
 
-                ?>
+                            <div
+class="w-full h-full rounded-full flex flex-col items-center justify-center border-2 border-white
+    <?= $levelColor === 'red'
+        ? 'bg-rose-200'
+        : ($levelColor === 'orange'
+            ? 'bg-orange-200'
+            : ($levelColor === 'green'
+                ? 'bg-emerald-500'
+                : 'bg-slate-200'))
+    ?>"
+                                >
 
+                                <span
+                                    class="text-lg font-black text-pastel-text leading-none"
+                                >
+                                    <?= $id ?>
+                                </span>
 
-                <div class="
-                island
-                theme-<?= htmlspecialchars($theme) ?>
-            " style="
-                left:
-                    <?= $position['left'] ?>%;
+                                <span
+                                    class="text-[9px] font-bold text-slate-500 leading-none mt-1"
+                                >
+                                    <?= $progress ?>%
+                                </span>
 
-                top:
-                    <?= $position['top'] ?>px;
-            ">
+                            </div>
 
+                        </div>
 
-                    <!-- ISLAND SHADOW -->
 
-                    <div class="island-shadow"></div>
+                        <!-- ------------------------------------------------ -->
+                        <!-- Hover Information -->
+                        <!-- ------------------------------------------------ -->
 
+                        <div
+                            class="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/95 text-white text-xs font-bold px-4 py-3 rounded-xl whitespace-nowrap mt-2 border border-slate-700 shadow-xl z-40 pointer-events-none"
+                        >
 
-                    <!-- ROCK -->
+                            <div class="text-sm">
+                                Chapter <?= $id ?>:
+                                <?= htmlspecialchars($island['name']) ?>
+                            </div>
 
-                    <div class="island-rock"></div>
 
+                            <div class="mt-1 text-slate-300">
+                                <?= htmlspecialchars($island['topic']) ?>
+                            </div>
 
-                    <!-- LAND -->
 
-                    <div class="island-land"></div>
+                            <div class="mt-2">
 
+                                Progress:
+                                <span class="text-white">
+                                    <?= $island['completed_subtopics'] ?>
+                                    /
+                                    <?= $island['total_subtopics'] ?>
+                                    Subtopics
+                                </span>
 
-                    <!-- =================================================
-                 DECORATIONS
-            ================================================== -->
+                                <span class="text-slate-400">
+                                    (<?= $progress ?>%)
+                                </span>
 
-                    <div class="tree tree-one"></div>
+                            </div>
 
-                    <div class="tree tree-two"></div>
 
-                    <div class="tree tree-three"></div>
+                            <div class="mt-1">
 
+                                Level:
 
-                    <div class="flower"></div>
+                                <?php if ($levelColor === 'red'): ?>
 
+                                    <span class="text-rose-400">
+                                        🔴 Beginner
+                                    </span>
 
-                    <div class="bush bush-one"></div>
+                                <?php elseif ($levelColor === 'orange'): ?>
 
-                    <div class="bush bush-two"></div>
+                                    <span class="text-orange-400">
+                                        🟠 Intermediate
+                                    </span>
 
+                                <?php elseif ($levelColor === 'green'): ?>
 
-                    <div class="mushroom"></div>
+                                    <span class="text-emerald-400">
+                                        🟢 Master
+                                    </span>
 
+                                <?php else: ?>
 
-                    <div class="pebble pebble-one"></div>
+                                    <span class="text-slate-300">
+                                        ⚪ Not Assessed
+                                    </span>
 
-                    <div class="pebble pebble-two"></div>
+                                <?php endif; ?>
 
+                            </div>
 
-                    <div class="palm"></div>
 
+                            <div
+                                class="mt-1 text-slate-400 text-[11px]"
+                            >
+                                <?= htmlspecialchars($levelDescription) ?>
+                            </div>
 
-                    <div class="cactus"></div>
-
-
-                    <div class="snowman"></div>
-
-
-                    <div class="volcano"></div>
-
-
-                    <!-- =================================================
-                 CHAPTER BUTTON
-            ================================================== -->
-
-                    <a href="module.php?chap=<?= (int) $chapterNumber ?>" class="
-                    chapter-button
-                    <?= $statusClass ?>
-                " title="<?= htmlspecialchars(
-                    $chapter['title']
-                ) ?>">
-
-                        <?= $chapterNumber ?>
+                        </div>
 
                     </a>
 
 
-                    <!-- =================================================
-                 CHAPTER LABEL
-            ================================================== -->
-
-                    <div class="island-info">
-
-                        <strong>
-
-                            Chapter
-                            <?= $chapterNumber ?>:
-
-                            <?= htmlspecialchars(
-                                $chapter['title']
-                            ) ?>
-
-                        </strong>
+                <?php else: ?>
 
 
-                        <span>
+                    <!-- ================================================= -->
+                    <!-- LOCKED CHAPTER -->
+                    <!-- ================================================= -->
 
-                            <?= $mastery ?>%
+                    <div
+                        class="flex flex-col items-center group cursor-not-allowed"
+                    >
 
-                            ·
+                        <div
+                            class="w-14 h-14 rounded-2xl border-2 flex items-center justify-center font-black text-lg bg-slate-200 border-white text-slate-400 shadow-md"
+                        >
 
-                            <?= $statusText ?>
+                            🔒
 
-                        </span>
+                        </div>
+
+
+                        <div
+                            class="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/95 text-white text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap mt-2 border border-slate-700 shadow-xl pointer-events-none"
+                        >
+
+                            Chapter <?= $id ?>: Locked
+
+                        </div>
 
                     </div>
 
 
+                <?php endif; ?>
+
+
+            </div>
+
+        <?php endforeach; ?>
+
+
+    </div>
+
+
+    <!-- ============================================================= -->
+    <!-- LEGEND -->
+    <!-- ============================================================= -->
+
+    <div
+        class="mt-4 w-full max-w-[85rem] bg-pastel-card border border-pastel-nav px-6 py-4 rounded-xl shadow-sm"
+    >
+
+
+        <div
+            class="flex flex-col lg:flex-row justify-between items-center gap-4"
+        >
+
+
+            <!-- TITLE -->
+
+            <div class="text-pastel-text font-bold text-sm">
+                🗺️ Island Adventure Legend
+            </div>
+
+
+            <!-- LEVEL LEGEND -->
+
+            <div
+                class="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-semibold"
+            >
+
+                <!-- Beginner -->
+
+                <div class="flex items-center gap-1.5">
+
+                    <span
+                        class="w-3 h-3 rounded-full bg-rose-400"
+                    ></span>
+
+                    <span>
+                        Beginner
+                    </span>
+
                 </div>
 
 
-            <?php endforeach; ?>
+                <!-- Intermediate -->
 
+                <div class="flex items-center gap-1.5">
+
+                    <span
+                        class="w-3 h-3 rounded-full bg-orange-400"
+                    ></span>
+
+                    <span>
+                        Intermediate
+                    </span>
+
+                </div>
+
+
+                <!-- Master -->
+
+                <div class="flex items-center gap-1.5">
+
+                    <span
+                        class="w-3 h-3 rounded-full bg-emerald-500"
+                    ></span>
+
+                    <span>
+                        Master
+                    </span>
+
+                </div>
+
+
+                <!-- Not Assessed -->
+
+                <div class="flex items-center gap-1.5">
+
+                    <span
+                        class="w-3 h-3 rounded-full bg-slate-300 border border-slate-400"
+                    ></span>
+
+                    <span>
+                        Not Assessed
+                    </span>
+
+                </div>
+
+
+                <!-- Locked -->
+
+                <div class="flex items-center gap-1.5">
+
+                    <span
+                        class="w-3 h-3 rounded-full bg-slate-500"
+                    ></span>
+
+                    <span>
+                        Locked
+                    </span>
+
+                </div>
+
+            </div>
 
         </div>
 
 
-        <!-- ======================================================
-     LEGEND
-====================================================== -->
+        <!-- EXPLANATION -->
 
-        <div class="legend">
+        <div
+            class="mt-3 pt-3 border-t border-pastel-nav text-center text-[11px] text-slate-500"
+        >
 
-            <div class="legend-title">
+            <span class="font-semibold">
+                Progress
+            </span>
+            shows completed subtopic quizzes.
 
-                Island Progress
+            <span class="mx-1">•</span>
 
-            </div>
-
-
-            <div class="legend-item">
-
-                <span class="
-                legend-dot
-                legend-red
-            "></span>
-
-                Not Done
-
-            </div>
-
-
-            <div class="legend-item">
-
-                <span class="
-                legend-dot
-                legend-yellow
-            "></span>
-
-                Completed
-
-            </div>
-
-
-            <div class="legend-item">
-
-                <span class="
-                legend-dot
-                legend-green
-            "></span>
-
-                Mastered
-
-            </div>
+            <span class="font-semibold">
+                Level
+            </span>
+            is determined by the Chapter Test.
 
         </div>
 
+    </div>
 
-    </main>
 
+    <!-- FLOWBITE -->
 
-    
-
+    <script
+        src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js"
+    ></script>
 
 </body>
 
