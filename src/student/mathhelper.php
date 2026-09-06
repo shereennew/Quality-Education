@@ -727,33 +727,33 @@ foreach ($raw_quizzes as $quiz) {
 
         function startAssignedQuiz(quizTitle) {
             const rawQuestions = assignedQuizzes[quizTitle] || [];
+
+            if (rawQuestions.length === 0) {
+                alert('This assigned quiz has no questions yet.');
+                return;
+            }
+
             const questions = rawQuestions.map((question) => ({
+                id: question.id,
                 q: question.question,
-                options: [question.option_a, question.option_b, question.option_c, question.option_d],
-                ans: ['A', 'B', 'C', 'D'].indexOf(question.correct_option.toUpperCase()),
+                options: [
+                    question.option_a,
+                    question.option_b,
+                    question.option_c,
+                    question.option_d
+                ],
+                ans: ['A', 'B', 'C', 'D'].indexOf(
+                    String(question.correct_option || '').toUpperCase()
+                ),
                 skill: quizTitle,
                 difficulty: 'Teacher Assigned',
-                explanation: ''
+                explanation: question.explanation || 'No explanation available.'
             }));
-
-    const questions = rawQuestions.map((question) => ({
-        id: question.id,
-        q: question.question,
-        options: [
-            question.option_a,
-            question.option_b,
-            question.option_c,
-            question.option_d
-        ],
-        ans: ['A', 'B', 'C', 'D'].indexOf(
-            question.correct_option.toUpperCase()
-        ),
-        explanation: question.explanation || 'No explanation available.'
-    }));
 
             document.getElementById('quiz-menu').classList.add('hidden');
             document.getElementById('quiz-result').classList.add('hidden');
             document.getElementById('quiz-runner').classList.remove('hidden');
+
             startQuizEngine({
                 title: quizTitle,
                 type: 'assigned',
@@ -845,7 +845,7 @@ foreach ($raw_quizzes as $quiz) {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        student_id: 1,
+                        student_id: <?= (int)$student_id ?>,
                         chapter_id: selectedChapterId,
                         scope_type: config.scopeType,
                         topic: config.topicLabel,
@@ -973,6 +973,14 @@ foreach ($raw_quizzes as $quiz) {
                     ? 'Correct!'
                     : `Incorrect. The correct answer is ${correctAnswerText}.`;
             }
+
+            // Show the button after the student answers.
+            const nextButton = document.getElementById('next-question-btn');
+            nextButton.classList.remove('hidden');
+            nextButton.innerText =
+                activeQIndex + 1 < currentQuiz.questions.length
+                    ? 'Next Question →'
+                    : 'See Results →';
         }
 
         function proceedToNextQuestion() {

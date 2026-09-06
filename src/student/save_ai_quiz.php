@@ -4,7 +4,7 @@ require_once __DIR__ . '/ai_quiz_helper.php';
 
 header('Content-Type: application/json');
 
-$studentId = 1;
+$studentId = 3;
 $input = json_decode(file_get_contents('php://input'), true);
 
 if (!is_array($input)) {

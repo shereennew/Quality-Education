@@ -61,15 +61,59 @@ $incorrectAnswers = $stmt_incorrect->fetchAll(PDO::FETCH_ASSOC);
 // Adaptive AI quiz history for this chapter/island.
 try {
     ensureAiQuizTables($pdo);
+
     $aiAttempts = getAiAttempts($pdo, $student_id, $selectedIsland, 20);
     $aiAttemptAnswers = [];
+
     foreach ($aiAttempts as $attempt) {
         $aiAttemptAnswers[(int)$attempt['id']] = getAiAttemptAnswers($pdo, (int)$attempt['id']);
     }
+
+    // Also load ONLY incorrect AI answers so they can appear in Focus Areas.
+    // These are not copied into another table; we simply read the same saved AI answers.
+    $stmt_ai_incorrect = $pdo->prepare("
+        SELECT
+            a.id,
+            a.question_text,
+            a.student_answer,
+            a.correct_answer,
+            a.explanation,
+            a.skill,
+            a.difficulty,
+            att.topic_label,
+            att.subtopic,
+            att.created_at AS submitted_at,
+            'AI Practice' AS quiz_type,
+            CASE
+                WHEN att.subtopic IS NOT NULL AND att.subtopic != '' THEN att.subtopic
+                ELSE att.topic_label
+            END AS quiz_title,
+            'ai' AS answer_source
+        FROM ai_quiz_answers a
+        JOIN ai_quiz_attempts att
+            ON a.attempt_id = att.id
+        WHERE att.student_id = ?
+          AND att.chapter_id = ?
+          AND a.is_correct = 0
+        ORDER BY att.created_at DESC, a.id DESC
+    ");
+    $stmt_ai_incorrect->execute([$student_id, $selectedIsland]);
+    $aiIncorrectAnswers = $stmt_ai_incorrect->fetchAll(PDO::FETCH_ASSOC);
+
 } catch (Throwable $e) {
     $aiAttempts = [];
     $aiAttemptAnswers = [];
+    $aiIncorrectAnswers = [];
 }
+
+// Mark regular quiz/test mistakes so both sources can be rendered together.
+foreach ($incorrectAnswers as &$answer) {
+    $answer['answer_source'] = 'regular';
+}
+unset($answer);
+
+// Focus Areas = normal quiz/test mistakes + AI quiz mistakes.
+$focusAnswers = array_merge($incorrectAnswers, $aiIncorrectAnswers);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -550,8 +594,8 @@ try {
                 <h2 class="text-lg font-black text-pastel-text mb-1 flex items-center gap-2">
                     <span>⚠️</span> Focus Areas
                 </h2>
-                <p class="text-xs text-slate-400 mb-4">Only incorrect items from your quizzes and tests are highlighted here for quick review.</p>
-<?php if (empty($incorrectAnswers)): ?>
+                <p class="text-xs text-slate-400 mb-4">Incorrect items from teacher quizzes, tests, and Adaptive AI practice are highlighted here for quick review.</p>
+<?php if (empty($focusAnswers)): ?>
 
     <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200
                 text-emerald-800 text-sm font-semibold flex items-center gap-2">
@@ -563,7 +607,7 @@ try {
 
     <div class="space-y-4">
 
-        <?php foreach ($incorrectAnswers as $q): ?>
+        <?php foreach ($focusAnswers as $q): ?>
 
             <div class="p-5 rounded-xl bg-rose-50 border border-rose-200">
 
@@ -572,10 +616,17 @@ try {
 
                     <div class="flex-1">
 
-                        <span class="text-[10px] font-bold uppercase
-                                     tracking-wider text-slate-400">
-                            <?= htmlspecialchars($q['quiz_type']) ?>
-                        </span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-[10px] font-bold uppercase tracking-wider <?= ($q['answer_source'] ?? '') === 'ai' ? 'text-purple-600' : 'text-slate-400' ?>">
+                                <?= htmlspecialchars($q['quiz_type']) ?>
+                            </span>
+
+                            <?php if (($q['answer_source'] ?? '') === 'ai' && !empty($q['skill'])): ?>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700">
+                                    <?= htmlspecialchars($q['skill']) ?>
+                                </span>
+                            <?php endif; ?>
+                        </div>
 
                         <h4 class="font-bold text-sm text-slate-800 mt-1">
                             <?= htmlspecialchars($q['question_text']) ?>

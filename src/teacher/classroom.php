@@ -282,29 +282,8 @@ $filtered_students = array_filter($students, function($student) use ($status_fil
 });
 
 // Fetch Main Topic Quizzes for the table section
-if (!empty($quiz_filter)) {
-    $stmt_main_q = $pdo->prepare("
-        SELECT id, question, subtopic_name
-        FROM chapter_quizzes
-        WHERE chapter_name = ?
-          AND (subtopic_name IS NULL OR subtopic_name = '')
-    ");
-    $stmt_main_q->execute([$table_chapter]);
-} else {
-    $stmt_main_q = $pdo->prepare("
-        SELECT id, question, subtopic_name
-        FROM chapter_quizzes
-        WHERE chapter_name = ?
-          AND (subtopic_name IS NULL OR subtopic_name = '')
-        ORDER BY id ASC
-    ");
-    $stmt_main_q->execute([$table_chapter]);
-}
-$table_main_quizzes = $stmt_main_q->fetchAll(PDO::FETCH_ASSOC);
 // Fetch Subtopic Quizzes for the table section
 if (!empty($quiz_filter)) {
-
-    // quiz_filter contains subtopic name, e.g. 1.1 or 1.2
     $stmt_sub_q = $pdo->prepare("
         SELECT id, question, subtopic_name
         FROM chapter_quizzes
@@ -314,15 +293,8 @@ if (!empty($quiz_filter)) {
           AND subtopic_name != ''
         ORDER BY id ASC
     ");
-
-    $stmt_sub_q->execute([
-        $table_chapter,
-        $quiz_filter
-    ]);
-
+    $stmt_sub_q->execute([$table_chapter, $quiz_filter]);
 } else {
-
-    // Show all subtopics under the selected chapter
     $stmt_sub_q = $pdo->prepare("
         SELECT id, question, subtopic_name
         FROM chapter_quizzes
@@ -331,22 +303,17 @@ if (!empty($quiz_filter)) {
           AND subtopic_name != ''
         ORDER BY subtopic_name ASC, id ASC
     ");
-
-    $stmt_sub_q->execute([
-        $table_chapter
-    ]);
+    $stmt_sub_q->execute([$table_chapter]);
 }
 
 $table_sub_quizzes_raw = $stmt_sub_q->fetchAll(PDO::FETCH_ASSOC);
 
 $table_grouped_sub_quizzes = [];
-
 foreach ($table_sub_quizzes_raw as $q) {
     $table_grouped_sub_quizzes[$q['subtopic_name']][] = $q;
 }
 
-$total_displayed_quizzes = count($table_main_quizzes) + count($table_sub_quizzes_raw);
-
+$total_displayed_quizzes = count($table_sub_quizzes_raw);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -573,7 +540,7 @@ try {
                     <h2 class="text-base font-bold text-pastel-text">Classroom Chapter Access Control</h2>
                     <p class="text-xs text-slate-500 mt-0.5">Click any chapter to view its details and materials.</p>
                 </div>
-                <a href="chapter_setup.php?classroom_id=<?php echo $class_id; ?>"
+                <a href="chapter_setup.php"
                     class="bg-pastel-primary hover:bg-pastel-hover text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition shadow-sm inline-flex items-center space-x-2 shrink-0">
                     <span>+ Add Chapter</span>
                 </a>
@@ -638,31 +605,18 @@ try {
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr
-                            class="bg-pastel-bg text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-blue-100">
+                        <tr class="bg-pastel-bg text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-blue-100">
                             <th class="py-3.5 px-6">Student Name</th>
                             <th class="py-3.5 px-6">Status</th>
                             
-                            <?php if (count($table_main_quizzes) > 0): ?>
-                                <?php foreach ($table_main_quizzes as $mq): ?>
-                                    <th class="py-3.5 px-6 text-center">
-                                        <a href="quiz_summary.php?quiz_id=<?php echo $mq['id']; ?>&classroom_id=<?php echo $class_id; ?>" 
-                                           class="hover:text-pastel-hover underline decoration-pastel-primary/50 underline-offset-4 transition">
-                                            Main Topic Quiz (Q#<?php echo $mq['id']; ?>)
-                                        </a>
-                                    </th>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-
-<?php foreach ($table_grouped_sub_quizzes as $sub_name => $sub_qs): ?>
-    <th class="py-3.5 px-6 text-center">
-        <a href="quiz_summary.php?chapter=<?php echo urlencode($table_chapter); ?>&subtopic=<?php echo urlencode($sub_name); ?>&classroom_id=<?php echo $class_id; ?>"
-           class="hover:text-pastel-hover underline decoration-pastel-primary/50 underline-offset-4 transition">
-            <?php echo htmlspecialchars($sub_name); ?> Quiz
-        </a>
-    </th>
-<?php endforeach; ?>
-
+                            <?php foreach ($table_grouped_sub_quizzes as $sub_name => $sub_qs): ?>
+                                <th class="py-3.5 px-6 text-center">
+                                    <a href="quiz_summary.php?chapter=<?php echo urlencode($table_chapter); ?>&subtopic=<?php echo urlencode($sub_name); ?>&classroom_id=<?php echo $class_id; ?>"
+                                       class="hover:text-pastel-hover underline decoration-pastel-primary/50 underline-offset-4 transition">
+                                        <?php echo htmlspecialchars($sub_name); ?> Quiz
+                                    </a>
+                                </th>
+                            <?php endforeach; ?>
 
                             <th class="py-3.5 px-6 text-center">Chapter Progress</th>
                             <th class="py-3.5 px-6 text-center">Action</th>
@@ -672,63 +626,27 @@ try {
                         <?php foreach ($filtered_students as $student): ?>
                             <?php
                             $isUnlocked = $unlocked_chapters[$table_chapter] ?? 0;
-                            $student_quiz_answers = [];
-
+                            
                             $stmt_max_q_count = $pdo->prepare("SELECT COUNT(*) FROM chapter_quizzes WHERE chapter_name = ?");
                             $stmt_max_q_count->execute([$table_chapter]);
                             $chapter_total_quiz_count = max(1, $stmt_max_q_count->fetchColumn());
 
-                            if ($isUnlocked) {
-    foreach ($table_main_quizzes as $q) {
-        $stmt_ans = $pdo->prepare("
-            SELECT sa.status 
-            FROM student_quiz_answers sqa
-            JOIN student_assessments sa ON sqa.assessment_id = sa.id
-            WHERE sa.student_id = ? AND sqa.quiz_id = ?
-            LIMIT 1
-        ");
-        $stmt_ans->execute([$student['id'], $q['id']]);
-        $ans_data = $stmt_ans->fetch(PDO::FETCH_ASSOC);
-        $student_quiz_answers[$q['id']] = $ans_data ? $ans_data['status'] : 'Not Attempted';
-    }
-    foreach ($table_sub_quizzes_raw as $q) {
-        $stmt_ans = $pdo->prepare("
-            SELECT sa.status 
-            FROM student_quiz_answers sqa
-            JOIN student_assessments sa ON sqa.assessment_id = sa.id
-            WHERE sa.student_id = ? AND sqa.quiz_id = ?
-            LIMIT 1
-        ");
-        $stmt_ans->execute([$student['id'], $q['id']]);
-        $ans_data = $stmt_ans->fetch(PDO::FETCH_ASSOC);
-        $student_quiz_answers[$q['id']] = $ans_data ? $ans_data['status'] : 'Not Attempted';
-    }
-}
+                            $stmt_prog_cnt = $pdo->prepare("
+                                SELECT COUNT(*)
+                                FROM student_quiz_answers sq
+                                JOIN student_assessments sa ON sq.assessment_id = sa.id
+                                JOIN chapter_quizzes cq ON sq.quiz_id = cq.id
+                                WHERE sa.student_id = ?
+                                  AND sa.type = 'Quiz'
+                                  AND cq.chapter_name = ?
+                                  AND sq.is_correct = 1
+                            ");
+                            $stmt_prog_cnt->execute([$student['id'], $table_chapter]);
+                            $completed_quiz_count = (int)$stmt_prog_cnt->fetchColumn();
 
-$stmt_prog_cnt = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM student_quiz_answers sq
-    JOIN student_assessments sa
-        ON sq.assessment_id = sa.id
-    JOIN chapter_quizzes cq
-        ON sq.quiz_id = cq.id
-    WHERE sa.student_id = ?
-      AND sa.type = 'Quiz'
-      AND cq.chapter_name = ?
-      AND sq.is_correct = 1
-");
-
-$stmt_prog_cnt->execute([
-    $student['id'],
-    $table_chapter
-]);
-
-$completed_quiz_count = (int)$stmt_prog_cnt->fetchColumn();
-
-$chapter_percentage = $chapter_total_quiz_count > 0
-    ? round(($completed_quiz_count / $chapter_total_quiz_count) * 100)
-    : 0;
-
+                            $chapter_percentage = $chapter_total_quiz_count > 0
+                                ? round(($completed_quiz_count / $chapter_total_quiz_count) * 100)
+                                : 0;
                             ?>
                             <tr class="hover:bg-pastel-bg/50 transition">
                                 <td class="py-4 px-6 font-medium text-pastel-text">
@@ -739,7 +657,7 @@ $chapter_percentage = $chapter_total_quiz_count > 0
                                 </td>
 
                                 <?php 
-                                $total_quiz_cols = count($table_main_quizzes) + count($table_grouped_sub_quizzes);
+                                $total_quiz_cols = count($table_grouped_sub_quizzes);
                                 if (!$isUnlocked): 
                                 ?>
                                     <td colspan="<?php echo $total_quiz_cols + 2; ?>"
@@ -754,28 +672,6 @@ $chapter_percentage = $chapter_total_quiz_count > 0
                                         0%
                                     </td>
                                 <?php else: ?>
-                                    <?php if (count($table_main_quizzes) > 0): ?>
-                                        <?php foreach ($table_main_quizzes as $q): ?>
-                                            <?php $status = $student_quiz_answers[$q['id']] ?? 'Pending'; ?>
-                                            <td class="py-4 px-6 text-center">
-                                                <div class="inline-flex items-center justify-center px-3 py-1 rounded-xl text-xs font-semibold shadow-2xs
-                                                <?php
-                                                if ($status === 'Correct' || $status === 'Completed') {
-                                                    echo 'bg-emerald-100 text-emerald-700 border border-emerald-200';
-                                                } elseif ($status === 'Attempted') {
-                                                    echo 'bg-amber-100 text-amber-700 border border-amber-200';
-                                                } elseif ($status === 'Incorrect' || $status === 'Failed') {
-                                                    echo 'bg-rose-100 text-rose-700 border border-rose-200';
-                                                } else {
-                                                    echo 'bg-slate-100 text-slate-500 border border-slate-200';
-                                                }
-                                                ?>">
-                                                    Main Topic: <?php echo htmlspecialchars($status); ?>
-                                                </div>
-                                            </td>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-
                                     <?php foreach ($table_grouped_sub_quizzes as $sub_name => $sub_qs): ?>
                                         <?php
                                         $subtopic_title = 'Subtopic ' . $sub_name . ' Assessment';
@@ -790,6 +686,7 @@ $chapter_percentage = $chapter_total_quiz_count > 0
                                         ");
                                         $stmt_sub_result->execute([$student['id'], $subtopic_title]);
                                         $sub_result = $stmt_sub_result->fetch(PDO::FETCH_ASSOC);
+                                        
                                         if ($sub_result) {
                                             $status = $sub_result['status'];
                                             $score_text = $sub_result['score'];
@@ -849,6 +746,7 @@ $chapter_percentage = $chapter_total_quiz_count > 0
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
+                    
                 </table>
             </div>
         </section>
