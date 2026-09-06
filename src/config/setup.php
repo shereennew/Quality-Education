@@ -179,9 +179,9 @@ $pdo->exec("CREATE TABLE teacher_quiz_feedback (
         (1, 'Teacher Sarah', 'sarah@eduhunt.com', 'Mathematics Department');");
 
     $pdo->exec("INSERT INTO classrooms (id, teacher_id, name, avg_mastery) VALUES 
-        (1, 1, 'Grade 5 Mathematics - Section A', '68%'),
-        (2, 1, 'Grade 5 Mathematics - Section B', '54%'),
-        (3, 1, 'Grade 6 Remedial Math', '79%');");
+        (1, 1, 'Year 4 Mathematics - Class January', '42%'),
+        (2, 1, 'Year 4 Mathematics - Class February', '54%'),
+        (3, 1, 'Year 6 Mathematics', '79%');");
 
     $all_students = [
         [1, 'Amina Yusuf', 'Mastering', 95],
