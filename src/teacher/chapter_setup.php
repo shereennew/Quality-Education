@@ -29,6 +29,7 @@ $success_msg = '';
 $error_msg = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $chapter_number = intval($_POST['chapter_number'] ?? 1);
     $chapter_name = trim($_POST['chapter_name'] ?? '');
 
     if (!empty($chapter_name)) {
@@ -48,13 +49,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $file_path = 'uploads/' . $file_name;
                 }
             }
-            $stmt_mat = $pdo->prepare("INSERT INTO chapter_materials (chapter_name, subtopic_name, title, file_path) VALUES (?, NULL, ?, ?)");
-            $stmt_mat->execute([$chapter_name, $main_material_title, $file_path]);
+            $stmt_mat = $pdo->prepare("INSERT INTO chapter_materials (chapter_number, chapter_name, subtopic_name, title, file_path) VALUES (?, ?, NULL, ?, ?)");
+            $stmt_mat->execute([$chapter_number, $chapter_name, $main_material_title, $file_path]);
         }
 
         // 2. Save Main Topic Quizzes (if provided)
         if (!empty($_POST['main_questions']) && is_array($_POST['main_questions'])) {
-            $stmt_quiz = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, subtopic_name, question, option_a, option_b, option_c, option_d, correct_option) VALUES (?, NULL, ?, ?, ?, ?, ?, ?)");
+            $stmt_quiz = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_number, chapter_name, subtopic_name, question, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)");
             foreach ($_POST['main_questions'] as $q) {
                 $question = trim($q['question'] ?? '');
                 $option_a = trim($q['option_a'] ?? '');
@@ -64,19 +65,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $correct_option = trim($q['correct_option'] ?? '');
 
                 if (!empty($question) && !empty($option_a) && !empty($option_b) && !empty($option_c) && !empty($option_d) && !empty($correct_option)) {
-                    $stmt_quiz->execute([$chapter_name, $question, $option_a, $option_b, $option_c, $option_d, $correct_option]);
+                    $stmt_quiz->execute([$chapter_number, $chapter_name, $question, $option_a, $option_b, $option_c, $option_d, $correct_option]);
                 }
             }
         }
 
         // 3. Save Subtopics (Materials & Quizzes)
         if (!empty($_POST['subtopics']) && is_array($_POST['subtopics'])) {
-            $stmt_sub_mat = $pdo->prepare("INSERT INTO chapter_materials (chapter_name, subtopic_name, title, file_path) VALUES (?, ?, ?, ?)");
-            $stmt_sub_quiz = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_name, subtopic_name, question, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt_sub_mat = $pdo->prepare("INSERT INTO chapter_materials (chapter_number, chapter_name, subtopic_name, title, file_path) VALUES (?, ?, ?, ?, ?)");
+            $stmt_sub_quiz = $pdo->prepare("INSERT INTO chapter_quizzes (chapter_number, chapter_name, subtopic_name, question, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             foreach ($_POST['subtopics'] as $sub_key => $sub) {
                 $subtopic_name = trim($sub['subtopic_name'] ?? '');
-                if (empty($subtopic_name)) continue;
+                if (empty($subtopic_name))
+                    continue;
 
                 // Subtopic Material
                 $sub_mat_title = trim($sub['material_title'] ?? '');
@@ -104,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $s_correct = trim($sq['correct_option'] ?? '');
 
                         if (!empty($s_question) && !empty($s_opt_a) && !empty($s_opt_b) && !empty($s_opt_c) && !empty($s_opt_d) && !empty($s_correct)) {
-                            $stmt_sub_quiz->execute([$chapter_name, $subtopic_name, $s_question, $s_opt_a, $s_opt_b, $s_opt_c, $s_opt_d, $s_correct]);
+                            $stmt_sub_quiz->execute([$chapter_number, $chapter_name, $subtopic_name, $s_question, $s_opt_a, $s_opt_b, $s_opt_c, $s_opt_d, $s_correct]);
                         }
                     }
                 }
@@ -120,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -255,10 +258,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     </script>
 </head>
+
 <body class="bg-pastel-bg text-pastel-text min-h-screen font-sans flex flex-col">
     <header class="bg-pastel-nav border-b border-blue-100 sticky top-0 z-50 shadow-sm">
         <div class="max-w-3xl mx-auto px-6 py-3.5 flex justify-between items-center w-full">
-            <a href="classroom.php" class="text-pastel-text hover:text-pastel-hover bg-white/60 hover:bg-white px-3 py-1.5 rounded-lg text-xs font-semibold transition border border-blue-100">&larr; Back to Classroom</a>
+            <a href="classroom.php"
+                class="text-pastel-text hover:text-pastel-hover bg-white/60 hover:bg-white px-3 py-1.5 rounded-lg text-xs font-semibold transition border border-blue-100">&larr;
+                Back to Classroom</a>
         </div>
     </header>
 
@@ -282,28 +288,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <!-- Chapter Name -->
                 <div class="bg-pastel-bg/30 p-5 rounded-2xl border border-blue-100 space-y-4">
                     <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">1. Chapter Information</h3>
+                    <div class="md:col-span-1">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Chapter Number</label>
+                        <input type="number" name="chapter_number" value="1" min="1" required
+                            class="w-full text-xs px-4 py-3 rounded-xl border border-blue-100 bg-white focus:outline-none focus:border-pastel-primary">
+                    </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-600 mb-1">Chapter Name (Topic)</label>
-                        <input type="text" name="chapter_name" required placeholder="e.g., Geometry (Ch 4)" class="w-full text-xs px-4 py-3 rounded-xl border border-blue-100 bg-white focus:outline-none focus:border-pastel-primary">
+                        <input type="text" name="chapter_name" required placeholder="e.g., Geometry (Ch 4)"
+                            class="w-full text-xs px-4 py-3 rounded-xl border border-blue-100 bg-white focus:outline-none focus:border-pastel-primary">
                     </div>
                 </div>
 
                 <!-- Main Topic Materials & Quizzes -->
                 <div class="bg-pastel-bg/30 p-5 rounded-2xl border border-blue-100 space-y-4">
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">2. Topic-Level Materials & Quizzes (Optional)</h3>
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">2. Topic-Level Materials &
+                        Quizzes (Optional)</h3>
                     <div>
                         <label class="block text-xs font-bold text-slate-600 mb-1">Topic Material Title</label>
-                        <input type="text" name="main_material_title" placeholder="e.g., Chapter Overview Slides" class="w-full text-xs px-4 py-2.5 rounded-xl border border-blue-100 bg-white focus:outline-none focus:border-pastel-primary">
+                        <input type="text" name="main_material_title" placeholder="e.g., Chapter Overview Slides"
+                            class="w-full text-xs px-4 py-2.5 rounded-xl border border-blue-100 bg-white focus:outline-none focus:border-pastel-primary">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-600 mb-1">Topic Material File</label>
-                        <input type="file" name="main_material_file" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-pastel-badge file:text-pastel-hover">
+                        <input type="file" name="main_material_file"
+                            class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-pastel-badge file:text-pastel-hover">
                     </div>
 
                     <div class="space-y-3 pt-3 border-t border-blue-100">
                         <div class="flex justify-between items-center">
                             <h4 class="text-xs font-bold text-slate-600">Topic Quiz Questions</h4>
-                            <button type="button" onclick="addMainQuestionField()" class="bg-pastel-badge text-pastel-hover text-xs font-semibold px-3 py-1.5 rounded-xl transition">
+                            <button type="button" onclick="addMainQuestionField()"
+                                class="bg-pastel-badge text-pastel-hover text-xs font-semibold px-3 py-1.5 rounded-xl transition">
                                 + Add Topic Quiz Question
                             </button>
                         </div>
@@ -311,18 +327,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="quiz-block border border-blue-100 p-4 rounded-xl space-y-3 bg-white">
                                 <h4 class="text-xs font-bold text-pastel-text">Topic Quiz Question #1</h4>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Question</label>
-                                    <input type="text" name="main_questions[1][question]" placeholder="Enter question" class="w-full text-xs px-4 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
+                                    <label
+                                        class="block text-xs font-bold text-slate-500 uppercase mb-1">Question</label>
+                                    <input type="text" name="main_questions[1][question]" placeholder="Enter question"
+                                        class="w-full text-xs px-4 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                    <input type="text" name="main_questions[1][option_a]" placeholder="Option A" class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
-                                    <input type="text" name="main_questions[1][option_b]" placeholder="Option B" class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
-                                    <input type="text" name="main_questions[1][option_c]" placeholder="Option C" class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
-                                    <input type="text" name="main_questions[1][option_d]" placeholder="Option D" class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
+                                    <input type="text" name="main_questions[1][option_a]" placeholder="Option A"
+                                        class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
+                                    <input type="text" name="main_questions[1][option_b]" placeholder="Option B"
+                                        class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
+                                    <input type="text" name="main_questions[1][option_c]" placeholder="Option C"
+                                        class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
+                                    <input type="text" name="main_questions[1][option_d]" placeholder="Option D"
+                                        class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Correct Option</label>
-                                    <select name="main_questions[1][correct_option]" class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
+                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Correct
+                                        Option</label>
+                                    <select name="main_questions[1][correct_option]"
+                                        class="text-xs px-3 py-2 rounded-xl border border-blue-100 bg-pastel-bg/40 focus:outline-none focus:border-pastel-primary">
                                         <option value="A">Option A</option>
                                         <option value="B">Option B</option>
                                         <option value="C">Option C</option>
@@ -340,7 +364,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div>
                             <h3 class="text-sm font-bold text-pastel-text">3. Subtopics (Materials & Quizzes)</h3>
                         </div>
-                        <button type="button" onclick="addSubtopicSection()" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-4 py-2 rounded-xl transition shadow-sm">
+                        <button type="button" onclick="addSubtopicSection()"
+                            class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-4 py-2 rounded-xl transition shadow-sm">
                             + Add Subtopic
                         </button>
                     </div>
@@ -351,7 +376,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <div class="flex justify-end pt-4">
-                    <button type="submit" class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-6 py-3 rounded-xl transition shadow-sm">
+                    <button type="submit"
+                        class="bg-pastel-primary hover:bg-pastel-hover text-white text-xs font-semibold px-6 py-3 rounded-xl transition shadow-sm">
                         Save
                     </button>
                 </div>
@@ -359,4 +385,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </main>
 </body>
+
 </html>

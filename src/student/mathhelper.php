@@ -19,7 +19,7 @@ try {
         JOIN chapter_materials cm ON cc.chapter_id = cm.id OR cc.chapter_name = cm.chapter_name
         WHERE cc.classroom_id = ? AND cc.is_unlocked = 1
         GROUP BY cm.chapter_name
-        ORDER BY cm.chapter_name ASC
+        ORDER BY cc.id ASC
     ");
     $stmt->execute([$classroom_id]);
     $chapters_db = $stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -96,9 +96,21 @@ if (!empty($subtopics_list)) {
         $matched_quizzes = [];
         foreach ($raw_quizzes as $qIndex => $q) {
             $matches_subtopic = false;
-            if (isset($q['subtopic_name']) && (string)$q['subtopic_name'] === (string)$subtopic_num) {
+            $q_sub = trim((string)($q['subtopic_name'] ?? ''));
+            $s_num = trim((string)$subtopic_num);
+            $s_title = trim((string)($sub['title'] ?? ''));
+
+            // Check if subtopic names match loosely or contain each other
+            if ($q_sub !== '' && (
+                $q_sub === $s_num || 
+                stripos($q_sub, $s_num) !== false || 
+                ($s_title !== '' && stripos($q_sub, $s_title) !== false)
+            )) {
                 $matches_subtopic = true;
-            } elseif ($qIndex % count($subtopics_list) === $index) {
+            } elseif ($q_sub === '' && $index === 0) {
+                // Handle NULL or empty subtopic_name for the first subtopic or general chapter questions
+                $matches_subtopic = true;
+            } elseif ($qIndex % count($subtopics_list) === $index && empty($q_sub)) {
                 $matches_subtopic = true;
             }
 

@@ -207,7 +207,6 @@ try {
         (1, 1, 'Ancient Pyramid: Fundamentals', 1),
         (1, 2, 'Cherry Blossom: Multiplications', 1),
         (1, 3, 'Volcanic Jungle: Fractions & Decimals', 1),
-        (1, 4, 'The Cave: Geometry', 0),
         (2, 1, 'Ancient Pyramid: Fundamentals', 1),
         (3, 1, 'Ancient Pyramid: Fundamentals', 1);");
 
@@ -217,8 +216,7 @@ try {
         (2, 'Cherry Blossom: Multiplications', '2.1', 'Multiplication Tables & Factors', NULL),
         (2, 'Cherry Blossom: Multiplications', '2.2', 'Simplifying Fractions to Lowest Terms', NULL),
         (3, 'Volcanic Jungle: Fractions & Decimals', '3.1', 'Mixed Numbers and Improper Fractions', NULL),
-        (3, 'Volcanic Jungle: Fractions & Decimals', '3.2', 'Decimal Conversion and Advanced Operations', NULL),
-        (4, 'The Cave: Geometry', '4.1', 'Introduction to Shapes and Angles', NULL);");
+        (3, 'Volcanic Jungle: Fractions & Decimals', '3.2', 'Decimal Conversion and Advanced Operations', NULL)");
 
     $pdo->exec("INSERT INTO student_progress (student_id, island_id, chapter_name, level, status) VALUES 
         (1, 1, 'Ancient Pyramid: Fundamentals', 0, 'In Progress'),
@@ -697,6 +695,7 @@ foreach ($chapter_quizzes_data as $q) {
     $status = 'error';
     $error_msg = $e->getMessage();
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
