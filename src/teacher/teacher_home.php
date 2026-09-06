@@ -1,5 +1,4 @@
 <?php
-// src/teacher/teacher_home.php
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
@@ -68,7 +67,22 @@ $classrooms = $pdo->query("SELECT * FROM classrooms")->fetchAll(PDO::FETCH_ASSOC
 
         <!-- Classrooms Grid -->
         <div class="space-y-4">
-            <h3 class="text-sm font-bold text-pastel-text uppercase tracking-wider">Your Classrooms</h3>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h3 class="text-sm font-bold text-pastel-text uppercase tracking-wider">Your Classrooms</h3>
+                
+                <!-- Hardcoded Subject Dropdown -->
+                <div class="flex items-center space-x-2">
+                    <label for="subject-select" class="text-xs font-semibold text-pastel-text">Subject:</label>
+                    <select id="subject-select" class="bg-pastel-card border border-pastel-primary/30 text-pastel-text text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pastel-primary shadow-sm">
+                        <option value="all">All Subjects</option>
+                        <option value="math">Mathematics</option>
+                        <option value="science">Science</option>
+                        <option value="english">English</option>
+                        <option value="history">History</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <?php foreach ($classrooms as $class): ?>
                     <div class="bg-pastel-card rounded-2xl shadow-sm border border-blue-100 p-6 flex flex-col justify-between space-y-6 hover:shadow-md transition">
