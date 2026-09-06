@@ -466,10 +466,10 @@ preg_match(
                     <li>
 
                         <a
-                            href="/Quality-Education/src/student/quiz.php"
+                            href="/Quality-Education/src/student/mathhelper.php"
                             class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200"
                         >
-                            <span>Quizzes</span>
+                            <span>Math Helper</span>
                         </a>
 
                     </li>
@@ -604,10 +604,10 @@ preg_match(
                 <li>
 
                     <a
-                        href="quiz.php"
+                        href="mathhelper.php"
                         class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors"
                     >
-                        Quizzes
+                        Math Helper
                     </a>
 
                 </li>

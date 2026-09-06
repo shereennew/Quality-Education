@@ -16,7 +16,7 @@ $active_tab = $_GET['page'] ?? 'discussion';
 $nav_items = [
     'home'        => ['label' => 'Home',        'url' => 'student_dashboard.php'],
     'module'      => ['label' => 'Modules',     'url' => 'module.php'],
-    'quiz'        => ['label' => 'Quizzes',     'url' => 'quiz.php'],
+    'quiz'        => ['label' => 'Math Helper',     'url' => 'mathhelper.php'],
     'discussion'  => ['label' => 'Discussion',  'url' => 'student_discussion.php'],
     'math_helper' => ['label' => 'Math Helper', 'url' => 'math_helper.php']
 ];
