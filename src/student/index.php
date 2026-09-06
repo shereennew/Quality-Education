@@ -368,276 +368,226 @@ preg_match(
         }
     </script>
 
+
+
     <link
         href="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.css"
         rel="stylesheet"
     />
 
+        <style>
+         .main-navbar {
+    height: 96px;
+    background: #e1e9f5;
+    border-bottom: 1px solid rgba(125, 160, 202, .25);
+    box-shadow: 0 3px 15px rgba(75, 100, 130, .10);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    align-self: stretch;
+}
+
+.nav-inner {
+    width: 100%;
+    max-width: 1500px;
+    margin: auto;
+    padding: 0 45px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    text-decoration: none;
+    color: #2c3e50;
+}
+
+.brand-icon {
+    width: 53px;
+    height: 53px;
+    border-radius: 16px;
+    background: #cbe0f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 900;
+}
+
+.brand-name {
+    font-size: 30px;
+    font-weight: 900;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: #2c3e50;
+    padding: 13px 24px;
+    border-radius: 15px;
+    font-size: 18px;
+    font-weight: 800;
+    transition: .2s;
+}
+
+.nav-links a:hover {
+    background: #cbd9eb;
+}
+
+.nav-links a.active {
+    background: #7da0ca;
+    color: white;
+}
+
+.profile-area {
+    display: flex;
+    justify-content: flex-end;
+    position: relative;
+}
+
+.profile-button {
+    border: 1px solid rgba(125, 160, 202, .35);
+    background: white;
+    border-radius: 999px;
+    padding: 7px 16px 7px 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: default;
+    color: #2c3e50;
+    font-weight: 800;
+    font-size: 16px;
+}
+
+.avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #cbe0f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 900;
+}
+
+@media (max-width: 1000px) {
+    .nav-inner {
+        grid-template-columns: auto 1fr;
+    }
+
+    .nav-links {
+        display: none;
+    }
+
+    .profile-area {
+        justify-self: end;
+    }
+}
+
+@media (max-width: 650px) {
+    .brand-name {
+        font-size: 23px;
+    }
+
+    .profile-name {
+        display: none;
+    }
+}
+</style>
+
 </head>
 
 
 <body
-    class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center justify-center p-4 pt-28"
+    class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center justify-start"
 >
+<!-- ============================================================= -->
+<!-- NAVBAR -->
+<!-- ============================================================= -->
+<nav class="main-navbar">
 
+    <div class="nav-inner">
 
-    <!-- ============================================================= -->
-    <!-- NAVBAR -->
-    <!-- ============================================================= -->
+        <a href="index.php" class="brand">
+            <div class="brand-icon">
+                E
+            </div>
 
-    <nav
-        class="bg-pastel-nav fixed w-full h-20 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center"
-    >
+            <div class="brand-name">
+                EduHunt
+            </div>
+        </a>
 
-        <div
-            class="w-full max-w-[85rem] mx-auto px-8 flex items-center justify-between"
-        >
+        <div class="nav-links">
 
-            <!-- LOGO -->
-
-            <a
-                href="index.php"
-                class="flex items-center gap-3 flex-shrink-0"
-            >
-
-                <div
-                    class="bg-pastel-badge w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm"
-                >
-
-                    <span class="text-2xl">📖</span>
-
-                </div>
-
-                <span
-                    class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block"
-                >
-                    EduHunt
-                </span>
-
+            <a href="index.php" class="active">
+                Home
             </a>
 
+            <a href="discussion.php">
+                Discussion
+            </a>
 
-            <!-- NAVIGATION -->
+            <a href="module.php">
+                Modules
+            </a>
 
-            <div
-                class="hidden md:flex items-center justify-center flex-1 mx-6"
-            >
+            <a href="mathhelper.php">
+                Math Helper
+            </a>
 
-                <ul
-                    class="flex items-center gap-3 text-lg font-bold"
-                >
+            <a href="history.php">
+                History
+            </a>
 
-                    <li>
+        </div>
 
-                        <a
-                            href="index.php"
-                            class="flex items-center px-6 py-3 rounded-2xl bg-pastel-primary text-white shadow-sm transition-all duration-200 hover:bg-pastel-hover hover:-translate-y-0.5"
-                        >
-                            <span>Home</span>
-                        </a>
+        <div class="profile-area">
+            <div class="profile-button">
 
-                    </li>
-
-
-                    <li>
-
-                        <a
-                            href="/Quality-Education/src/student/discussion.php"
-                            class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200"
-                        >
-                            <span>Discussion</span>
-                        </a>
-
-                    </li>
-
-
-                    <li>
-
-                        <a
-                            href="/Quality-Education/src/student/module.php"
-                            class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200"
-                        >
-                            <span>Modules</span>
-                        </a>
-
-                    </li>
-
-
-                    <li>
-
-                        <a
-                            href="/Quality-Education/src/student/mathhelper.php"
-                            class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200"
-                        >
-                            <span>Math Helper</span>
-                        </a>
-
-                    </li>
-
-
-                    <li>
-
-                        <a
-                            href="/Quality-Education/src/student/history.php"
-                            class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary hover:shadow-sm transition-all duration-200"
-                        >
-                            <span>History</span>
-                        </a>
-
-                    </li>
-
-                </ul>
-
-            </div>
-
-
-            <!-- PROFILE -->
-
-            <div class="flex items-center flex-shrink-0">
-
-                <div
-                    class="flex items-center gap-3 py-2.5 px-4 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm"
-                >
-
-                    <div
-                        class="w-10 h-10 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-lg"
-                    >
-                        <?= strtoupper(substr($student['name'], 0, 1)) ?>
-                    </div>
-
-
-                    <span
-                        class="text-lg font-bold text-pastel-text hidden sm:block"
-                    >
-                        <?= htmlspecialchars($student['name']) ?>
-                    </span>
-
+                <div class="avatar">
+                    <?= htmlspecialchars(
+                        strtoupper(
+                            substr(
+                                $student['name'],
+                                0,
+                                1
+                            )
+                        )
+                    ) ?>
                 </div>
 
-
-                <!-- MOBILE MENU BUTTON -->
-
-                <button
-                    data-collapse-toggle="navbar-user"
-                    type="button"
-                    class="inline-flex items-center p-2.5 ml-3 w-12 h-12 justify-center text-pastel-primary rounded-2xl bg-pastel-card border-2 border-pastel-primary/20 md:hidden hover:bg-pastel-bg focus:outline-none focus:ring-2 focus:ring-pastel-primary/30"
-                    aria-controls="navbar-user"
-                    aria-expanded="false"
-                >
-
-                    <span class="sr-only">
-                        Open main menu
-                    </span>
-
-                    <svg
-                        class="w-7 h-7"
-                        aria-hidden="true"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                    >
-
-                        <path
-                            stroke="currentColor"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2.5"
-                            d="M5 7h14M5 12h14M5 17h14"
-                        />
-
-                    </svg>
-
-                </button>
+                <span class="profile-name">
+                    <?= htmlspecialchars($student['name']) ?>
+                </span>
 
             </div>
-
         </div>
 
+    </div>
 
-        <!-- MOBILE MENU -->
-
-        <div
-            class="hidden w-full md:hidden px-5 pb-4 absolute top-20 left-0 bg-pastel-nav border-b-2 border-pastel-primary/20 shadow-lg"
-            id="navbar-user"
-        >
-
-            <ul
-                class="flex flex-col gap-2 text-base font-bold bg-pastel-card p-4 rounded-2xl border-2 border-pastel-nav shadow-sm"
-            >
-
-                <li>
-
-                    <a
-                        href="index.php"
-                        class="block py-3 px-4 text-white bg-pastel-primary rounded-xl shadow-sm"
-                    >
-                        Home
-                    </a>
-
-                </li>
-
-
-                <li>
-
-                    <a
-                        href="discussion.php"
-                        class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors"
-                    >
-                        Discussion
-                    </a>
-
-                </li>
-
-
-                <li>
-
-                    <a
-                        href="module.php"
-                        class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors"
-                    >
-                        Modules
-                    </a>
-
-                </li>
-
-
-                <li>
-
-                    <a
-                        href="mathhelper.php"
-                        class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors"
-                    >
-                        Math Helper
-                    </a>
-
-                </li>
-
-
-                <li>
-
-                    <a
-                        href="history.php"
-                        class="block py-3 px-4 text-pastel-text rounded-xl hover:bg-pastel-bg hover:text-pastel-primary transition-colors"
-                    >
-                        History
-                    </a>
-
-                </li>
-
-            </ul>
-
-        </div>
-
-    </nav>
+</nav>
 
 
     <!-- ============================================================= -->
     <!-- HEADER / BANNER -->
     <!-- ============================================================= -->
 
-    <div
-        class="w-full max-w-[85rem] flex justify-between items-center mb-4 bg-pastel-card border border-pastel-nav px-6 py-3.5 rounded-2xl shadow-md"
-    >
+<div
+    class="w-full max-w-[85rem] flex justify-between items-center mt-10 mb-4 bg-pastel-card border border-pastel-nav px-6 py-3.5 rounded-2xl shadow-md"
+>
 
         <div class="flex items-center space-x-3">
 
@@ -650,9 +600,9 @@ preg_match(
 
             <div>
 
-                <h1
-                    class="text-base font-black text-pastel-text flex items-center gap-1.5"
-                >
+<h1
+    class="text-xl font-black text-pastel-text flex items-center gap-1.5"
+>
                     Ahoy,
                     <?= htmlspecialchars($student['name']) ?>!
                     <span class="text-2xl leading-none">🏴‍☠️</span>

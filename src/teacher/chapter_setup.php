@@ -3,6 +3,23 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 
+
+$classroom_id = (int)($_GET['classroom_id'] ?? $_POST['classroom_id'] ?? 1);
+if ($classroom_id <= 0) $classroom_id = 1;
+
+// Upgrade existing Quality-Education chapter table with Eduhunt-style island metadata.
+$chapterColumns = $pdo->query("PRAGMA table_info(classroom_chapters)")->fetchAll(PDO::FETCH_ASSOC);
+$columnNames = array_column($chapterColumns, 'name');
+if (!in_array('chapter_order', $columnNames, true)) {
+    $pdo->exec("ALTER TABLE classroom_chapters ADD COLUMN chapter_order INTEGER DEFAULT 1");
+}
+if (!in_array('island_theme', $columnNames, true)) {
+    $pdo->exec("ALTER TABLE classroom_chapters ADD COLUMN island_theme TEXT DEFAULT 'forest'");
+}
+if (!in_array('is_published', $columnNames, true)) {
+    $pdo->exec("ALTER TABLE classroom_chapters ADD COLUMN is_published INTEGER DEFAULT 1");
+}
+
 // Ensure tables exist with support for both topic and subtopic levels
 $pdo->exec("CREATE TABLE IF NOT EXISTS chapter_materials (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,7 +48,28 @@ $error_msg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $chapter_name = trim($_POST['chapter_name'] ?? '');
 
+    $chapter_order = max(1, (int)($_POST['chapter_order'] ?? 1));
+    $island_theme = trim($_POST['island_theme'] ?? 'forest');
+    $allowed_themes = ['cherry','ocean','desert','forest','snow','volcano','candy','sunset'];
+    if (!in_array($island_theme, $allowed_themes, true)) $island_theme = 'forest';
+    $is_unlocked = isset($_POST['is_unlocked']) ? 1 : 0;
+    $is_published = isset($_POST['is_published']) ? 1 : 0;
+
     if (!empty($chapter_name)) {
+
+        // This is the record the student island map reads.
+        // Creating it here means every new teacher chapter becomes a new island automatically.
+        $stmt_existing_chapter = $pdo->prepare("SELECT id FROM classroom_chapters WHERE classroom_id = ? AND chapter_name = ? LIMIT 1");
+        $stmt_existing_chapter->execute([$classroom_id, $chapter_name]);
+        $existing_chapter_id = $stmt_existing_chapter->fetchColumn();
+
+        if ($existing_chapter_id) {
+            $stmt_meta = $pdo->prepare("UPDATE classroom_chapters SET chapter_order = ?, island_theme = ?, is_unlocked = ?, is_published = ? WHERE id = ?");
+            $stmt_meta->execute([$chapter_order, $island_theme, $is_unlocked, $is_published, $existing_chapter_id]);
+        } else {
+            $stmt_meta = $pdo->prepare("INSERT INTO classroom_chapters (classroom_id, chapter_name, is_unlocked, chapter_order, island_theme, is_published) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_meta->execute([$classroom_id, $chapter_name, $is_unlocked, $chapter_order, $island_theme, $is_published]);
+        }
         $upload_dir = __DIR__ . '/../../uploads/';
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0777, true);
@@ -278,13 +316,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             <?php endif; ?>
 
-            <form action="chapter_setup.php" method="POST" enctype="multipart/form-data" class="space-y-8">
+            <form action="chapter_setup.php?classroom_id=<?php echo $classroom_id; ?>" method="POST" enctype="multipart/form-data" class="space-y-8">
+                <input type="hidden" name="classroom_id" value="<?php echo $classroom_id; ?>">
                 <!-- Chapter Name -->
                 <div class="bg-pastel-bg/30 p-5 rounded-2xl border border-blue-100 space-y-4">
                     <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">1. Chapter Information</h3>
                     <div>
                         <label class="block text-xs font-bold text-slate-600 mb-1">Chapter Name (Topic)</label>
                         <input type="text" name="chapter_name" required placeholder="e.g., Geometry (Ch 4)" class="w-full text-xs px-4 py-3 rounded-xl border border-blue-100 bg-white focus:outline-none focus:border-pastel-primary">
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Chapter Order</label>
+                            <input type="number" min="1" name="chapter_order" value="1" required class="w-full text-xs px-4 py-3 rounded-xl border border-blue-100 bg-white focus:outline-none focus:border-pastel-primary">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Island Theme</label>
+                            <select name="island_theme" class="w-full text-xs px-4 py-3 rounded-xl border border-blue-100 bg-white focus:outline-none focus:border-pastel-primary">
+                                <option value="forest">Forest</option>
+                                <option value="cherry">Cherry Blossom</option>
+                                <option value="ocean">Ocean</option>
+                                <option value="desert">Desert</option>
+                                <option value="snow">Snow</option>
+                                <option value="volcano">Volcano</option>
+                                <option value="candy">Candy</option>
+                                <option value="sunset">Sunset</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-5 pt-1">
+                        <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+                            <input type="checkbox" name="is_unlocked" value="1" checked class="rounded">
+                            Unlocked for students
+                        </label>
+                        <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-600">
+                            <input type="checkbox" name="is_published" value="1" checked class="rounded">
+                            Show island on student map
+                        </label>
                     </div>
                 </div>
 

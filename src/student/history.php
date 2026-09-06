@@ -86,43 +86,291 @@ $incorrectAnswers = $stmt_incorrect->fetchAll(PDO::FETCH_ASSOC);
         }
     </script>
     <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.css" rel="stylesheet" />
+    <style>
+
+
+        .main-navbar {
+            width: 100%;
+            max-width: none;
+            align-self: stretch;
+            flex-shrink: 0;
+
+            height: 96px;
+
+            background: #e1e9f5;
+
+            border-bottom:
+                1px solid rgba(125, 160, 202, .25);
+
+            box-shadow:
+                0 3px 15px rgba(75, 100, 130, .10);
+
+            position: sticky;
+
+            top: 0;
+
+            z-index: 1000;
+
+            display: flex;
+
+            align-items: center;
+        }
+
+
+        .nav-inner {
+
+            width: 100%;
+
+            max-width: 1500px;
+
+            margin: auto;
+
+            padding: 0 45px;
+
+            display: grid;
+
+            grid-template-columns:
+                1fr auto 1fr;
+
+            align-items: center;
+        }
+
+
+        .brand {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 13px;
+
+            text-decoration: none;
+
+            color: #2c3e50;
+        }
+
+
+        .brand-icon {
+
+            width: 53px;
+            height: 53px;
+
+            border-radius: 16px;
+
+            background: #cbe0f5;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            font-size: 24px;
+
+            font-weight: 900;
+        }
+
+
+        .brand-name {
+
+            font-size: 30px;
+
+            font-weight: 900;
+        }
+
+
+        .nav-links {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 8px;
+        }
+
+
+        .nav-links a {
+
+            text-decoration: none;
+
+            color: #2c3e50;
+
+            padding: 13px 24px;
+
+            border-radius: 15px;
+
+            font-size: 18px;
+
+            font-weight: 800;
+
+            transition: .2s;
+        }
+
+
+        .nav-links a:hover {
+
+            background: #cbd9eb;
+        }
+
+
+        .nav-links a.active {
+
+            background: #7da0ca;
+
+            color: white;
+        }
+
+
+        .profile-area {
+
+            display: flex;
+
+            justify-content: flex-end;
+
+            position: relative;
+        }
+
+
+        .profile-button {
+
+            border:
+                1px solid rgba(125, 160, 202, .35);
+
+            background: white;
+
+            border-radius: 999px;
+
+            padding:
+                7px 16px 7px 8px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+
+            cursor: default;
+
+            color: #2c3e50;
+
+            font-weight: 800;
+
+            font-size: 16px;
+        }
+
+
+        .avatar {
+
+            width: 44px;
+            height: 44px;
+
+            border-radius: 50%;
+
+            background: #cbe0f5;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            font-size: 18px;
+
+            font-weight: 900;
+        }
+
+
+
+        
+
+        @media (max-width: 1000px) {
+            .nav-inner { grid-template-columns: auto 1fr; }
+            .nav-links { display: none; }
+            .profile-area { justify-self: end; }
+        }
+
+        @media (max-width: 650px) {
+            .brand-name { font-size: 23px; }
+            .profile-name { display: none; }
+        }
+
+    </style>
 </head>
 
-<body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center justify-start p-4 pt-28">
+<body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center justify-start">
 
     <!-- NAVBAR -->
-    <nav class="bg-pastel-nav fixed w-full h-20 z-50 top-0 start-0 border-b-2 border-pastel-primary/20 shadow-md flex items-center">
-        <div class="w-full max-w-[85rem] mx-auto px-8 flex items-center justify-between">
-            <a href="index.php" class="flex items-center gap-3 flex-shrink-0">
-                <div class="bg-pastel-badge w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm">
-                    <span class="text-2xl">📖</span>
+    <nav class="main-navbar">
+
+        <div class="nav-inner">
+
+
+            <a href="index.php" class="brand">
+
+                <div class="brand-icon">
+                    E
                 </div>
-                <span class="text-2xl font-black tracking-wide text-pastel-text hidden lg:block">EduHunt</span>
+
+                <div class="brand-name">
+                    EduHunt
+                </div>
+
             </a>
 
-            <div class="hidden md:flex items-center justify-center flex-1 mx-6">
-                <ul class="flex items-center gap-3 text-lg font-bold">
-                    <li><a href="index.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Home</a></li>
-                    <li><a href="discussion.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Discussion</a></li>
-                    <li><a href="module.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Modules</a></li>
-                    <li><a href="mathhelper.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Math Helper</a></li>
-                    <li><a href="history.php" class="flex items-center px-6 py-3 rounded-2xl bg-pastel-primary text-white shadow-sm">History</a></li>
-                </ul>
+
+            <div class="nav-links">
+
+                <a href="index.php">
+                    Home
+                </a>
+
+                <a href="discussion.php">
+                    Discussion
+                </a>
+
+                <a href="module.php">
+                    Modules
+                </a>
+
+                <a href="mathhelper.php">
+                    Math Helper
+                </a>
+
+                <a href="history.php" class="active">
+                    History
+                </a>
+
             </div>
 
-            <div class="flex items-center flex-shrink-0">
-                <button id="user-menu-button" data-dropdown-toggle="user-dropdown" type="button" class="flex items-center gap-3 py-2.5 px-4 bg-pastel-card border-2 border-pastel-primary/20 rounded-2xl shadow-sm">
-                    <div class="w-10 h-10 rounded-full bg-pastel-badge flex items-center justify-center font-black text-pastel-text text-lg">
-                        <?= strtoupper(substr($student['name'], 0, 1)) ?>
+
+            <div class="profile-area">
+                <div class="profile-button">
+                    <div class="avatar">
+                        <?= htmlspecialchars(
+                            strtoupper(
+                                substr(
+                                    $student['name'],
+                                    0,
+                                    1
+                                )
+                            )
+                        ) ?>
                     </div>
-                    <span class="text-lg font-bold text-pastel-text hidden sm:block"><?= htmlspecialchars($student['name']) ?></span>
-                </button>
+
+                    <span class="profile-name">
+                        <?= htmlspecialchars(
+                            $student['name']
+                        ) ?>
+                    </span>
+                </div>
             </div>
+
         </div>
+
     </nav>
 
     <!-- MAIN CONTAINER -->
-    <main class="w-full max-w-[85rem] grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <main class="w-full max-w-[85rem] grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 mt-4">
 
         <!-- LEFT SIDEBAR: CHAPTER / ISLAND LIST -->
         <section class="lg:col-span-4 bg-pastel-card border border-pastel-nav p-5 rounded-2xl shadow-md h-fit">
