@@ -2,7 +2,22 @@
 
 header('Content-Type: application/json');
 
-$GEMINI_API_KEY = 'PUT_YOUR_GEMINI_API_KEY_HERE';
+$secretsFile = __DIR__ . '/../config/secrets.php';
+
+if (!file_exists($secretsFile)) {
+    http_response_code(500);
+
+    echo json_encode([
+        'success' => false,
+        'error' => 'secrets.php was not found.'
+    ]);
+
+    exit;
+}
+
+$secrets = require $secretsFile;
+
+$GEMINI_API_KEY = $secrets['gemini_api_key'] ?? '';
 
 $input = json_decode(file_get_contents('php://input'), true);
 
@@ -69,7 +84,7 @@ Use exactly this structure:
 }
 PROMPT;
 
-$url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
+$url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent';
 
 $requestBody = [
     'contents' => [

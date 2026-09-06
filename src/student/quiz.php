@@ -60,6 +60,19 @@ try {
     $stmt_mat = $pdo->prepare("SELECT * FROM chapter_materials WHERE chapter_name = ? ORDER BY id ASC");
     $stmt_mat->execute([$chapter_info['title']]);
     $subtopics_list = $stmt_mat->fetchAll(PDO::FETCH_ASSOC);
+
+    // Build real learning topics for AI quiz
+$ai_topics = [];
+
+foreach ($subtopics_list as $subtopic) {
+    if (!empty($subtopic['title'])) {
+        $ai_topics[] = $subtopic['title'];
+    }
+}
+
+$ai_topic = !empty($ai_topics)
+    ? implode(', ', $ai_topics)
+    : $chapter_info['title'];
 } catch (Exception $e) {
     $subtopics_list = [];
 }
@@ -486,7 +499,7 @@ if (!empty($subtopics_list)) {
                     <h2 class="text-xl font-bold text-pastel-text mt-0.5">Generate Dynamic Chapter Quiz ✨</h2>
                     <p class="text-xs text-slate-600 mt-1">Instantly build custom multiple-choice questions tailored to this module using AI.</p>
                 </div>
-                <button onclick="fetchAIQuiz('<?= htmlspecialchars($chapter_info['title'] . ' - ' . $chapter_info['topic']) ?>')" class="w-full sm:w-auto px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition whitespace-nowrap flex items-center justify-center gap-2">
+                <button onclick='fetchAIQuiz(<?= json_encode($ai_topic) ?>)' class="w-full sm:w-auto px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md transition whitespace-nowrap flex items-center justify-center gap-2">
                     <span>Generate AI Quiz ⚡</span>
                 </button>
             </div>
