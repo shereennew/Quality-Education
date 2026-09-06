@@ -53,75 +53,41 @@ if (
     try {
 
         // ----------------------------------------------------
-        // Check whether all subtopic lessons are completed
+        // Check whether ALL subtopic quizzes have been attempted.
+        // IMPORTANT: the lesson score does NOT affect unlocking.
+        // A submitted subtopic quiz counts as completed even if the
+        // student got every question wrong.
         // ----------------------------------------------------
 
-        $stmt_materials = $pdo->prepare("
-            SELECT DISTINCT subtopic_name
+        $stmt_required = $pdo->prepare("
+            SELECT COUNT(DISTINCT subtopic_name)
             FROM chapter_materials
             WHERE chapter_name = ?
               AND subtopic_name IS NOT NULL
+              AND TRIM(subtopic_name) <> ''
         ");
-
-        $stmt_materials->execute([
-            $chapter_name
-        ]);
-
-        $required_subtopics =
-            $stmt_materials->fetchAll(PDO::FETCH_COLUMN);
+        $stmt_required->execute([$chapter_name]);
+        $required_count = (int)$stmt_required->fetchColumn();
 
         $stmt_completed = $pdo->prepare("
-            SELECT title
+            SELECT COUNT(DISTINCT title)
             FROM student_assessments
             WHERE student_id = ?
               AND island_id = ?
               AND type = 'Quiz'
+              AND status = 'Completed'
+              AND title LIKE 'Subtopic % Assessment'
         ");
-
         $stmt_completed->execute([
             $student_id,
             $chapter_num
         ]);
+        $completed_count = (int)$stmt_completed->fetchColumn();
 
-        $completed_titles =
-            $stmt_completed->fetchAll(PDO::FETCH_COLUMN);
-
-        $completed_subtopics = [];
-
-        foreach ($completed_titles as $title) {
-
-            if (
-                preg_match(
-                    '/^Subtopic\s+([\d.]+)\s+Assessment$/i',
-                    trim($title),
-                    $match
-                )
-            ) {
-
-                $completed_subtopics[$match[1]] = true;
-            }
-        }
-
-        $completed_count = 0;
-
-        foreach ($required_subtopics as $subtopic) {
-
-            if (
-                isset(
-                    $completed_subtopics[
-                        (string)$subtopic
-                    ]
-                )
-            ) {
-
-                $completed_count++;
-            }
-        }
-
-        // Do not allow Chapter Test before all lessons
+        // Do not allow Chapter Test until every subtopic is completed.
         if (
-            empty($required_subtopics) ||
-            $completed_count < count($required_subtopics)
+            $required_count <= 0 ||
+            $completed_count < $required_count
         ) {
 
             echo json_encode([
@@ -935,19 +901,29 @@ $subtopics[(string)$current_subtopic_idx] = [
         }
 
 
-        // Check whether all subtopic lessons are completed
+        // Check whether all subtopic quizzes have been submitted.
+        // Unlock is based ONLY on completion, never on the lesson score.
 $total_subtopics = count($subtopics);
-$completed_subtopics = 0;
 
-foreach ($subtopics as $subtopic) {
-    if (!empty($subtopic['is_completed'])) {
-        $completed_subtopics++;
-    }
-}
+$stmt_completed_lessons = $pdo->prepare("
+    SELECT COUNT(DISTINCT title)
+    FROM student_assessments
+    WHERE student_id = ?
+      AND island_id = ?
+      AND type = 'Quiz'
+      AND status = 'Completed'
+      AND title LIKE 'Subtopic % Assessment'
+");
+$stmt_completed_lessons->execute([
+    $student_id,
+    $chapter_num
+]);
+
+$completed_subtopics = (int)$stmt_completed_lessons->fetchColumn();
 
 $chapter_test_unlocked = (
     $total_subtopics > 0 &&
-    $completed_subtopics === $total_subtopics
+    $completed_subtopics >= $total_subtopics
 );
 
 // Check whether Chapter Test has already been completed

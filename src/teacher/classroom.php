@@ -569,7 +569,7 @@ try {
                     <h2 class="text-base font-bold text-pastel-text">Classroom Chapter Access Control</h2>
                     <p class="text-xs text-slate-500 mt-0.5">Click any chapter to view its details and materials.</p>
                 </div>
-                <a href="chapter_setup.php"
+                <a href="chapter_setup.php?classroom_id=<?php echo $class_id; ?>"
                     class="bg-pastel-primary hover:bg-pastel-hover text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition shadow-sm inline-flex items-center space-x-2 shrink-0">
                     <span>+ Add Chapter</span>
                 </a>
