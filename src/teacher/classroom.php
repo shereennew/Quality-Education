@@ -676,15 +676,26 @@ try {
 
                             if ($isUnlocked) {
     foreach ($table_main_quizzes as $q) {
-        // Look up via student_assessments or chapter evaluation logic
-        $stmt_ans = $pdo->prepare("SELECT status FROM student_assessments WHERE student_id = ? AND title LIKE ?");
-        $stmt_ans->execute([$student['id'], '%' .$table_chapter . '%']);
+        $stmt_ans = $pdo->prepare("
+            SELECT sa.status 
+            FROM student_quiz_answers sqa
+            JOIN student_assessments sa ON sqa.assessment_id = sa.id
+            WHERE sa.student_id = ? AND sqa.quiz_id = ?
+            LIMIT 1
+        ");
+        $stmt_ans->execute([$student['id'], $q['id']]);
         $ans_data = $stmt_ans->fetch(PDO::FETCH_ASSOC);
         $student_quiz_answers[$q['id']] = $ans_data ? $ans_data['status'] : 'Not Attempted';
     }
     foreach ($table_sub_quizzes_raw as $q) {
-        $stmt_ans = $pdo->prepare("SELECT status FROM student_assessments WHERE student_id = ? AND title LIKE ?");
-        $stmt_ans->execute([$student['id'], '%' .$table_chapter . '%']);
+        $stmt_ans = $pdo->prepare("
+            SELECT sa.status 
+            FROM student_quiz_answers sqa
+            JOIN student_assessments sa ON sqa.assessment_id = sa.id
+            WHERE sa.student_id = ? AND sqa.quiz_id = ?
+            LIMIT 1
+        ");
+        $stmt_ans->execute([$student['id'], $q['id']]);
         $ans_data = $stmt_ans->fetch(PDO::FETCH_ASSOC);
         $student_quiz_answers[$q['id']] = $ans_data ? $ans_data['status'] : 'Not Attempted';
     }
