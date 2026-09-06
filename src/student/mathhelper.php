@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 
-$student_id = 1;
+$student_id = 3;
 
 // Fetch Student Info
 $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
@@ -142,7 +142,7 @@ if (!empty($subtopics_list)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduHunt - Quizzes</title>
+    <title>EduHunt - Math Helper</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -182,7 +182,7 @@ if (!empty($subtopics_list)) {
                     <li><a href="index.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Home</a></li>
                     <li><a href="discussion.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Discussion</a></li>
                     <li><a href="module.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">Modules</a></li>
-                    <li><a href="quiz.php" class="flex items-center px-6 py-3 rounded-2xl bg-pastel-primary text-white shadow-sm">Quizzes</a></li>
+                    <li><a href="mathhelper.php" class="flex items-center px-6 py-3 rounded-2xl bg-pastel-primary text-white shadow-sm">Math Helper</a></li>
                     <li><a href="history.php" class="flex items-center px-5 py-3 rounded-2xl text-pastel-text hover:bg-pastel-card hover:text-pastel-primary">History</a></li>
                 </ul>
             </div>
@@ -221,7 +221,7 @@ if (!empty($subtopics_list)) {
                 <h3 class="text-sm font-bold text-pastel-text mb-3">Select Chapter Module:</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <?php foreach ($chapters as $id => $chap): ?>
-                        <a href="quiz.php?chapter=<?= $id ?>" class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
+                        <a href="mathhelper.php?chapter=<?= $id ?>" class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
                             <div>
                                 <span class="text-xs font-bold text-pastel-primary">Chapter <?= $id ?></span>
                                 <h4 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chap['title']) ?></h4>
