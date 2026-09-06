@@ -1,28 +1,7 @@
 <?php
-// module.php - SAVES QUIZ ATTEMPTS TO DB, PREVENTS RE-ATTEMPTING, AND PERSISTS ANSWERS/EXPLANATIONS ACROSS PAGE LOADS
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-session_start();
-
 require_once __DIR__ . '/../config/db.php';
 
-// Determine student ID dynamically without hardcoding
-if (isset($_SESSION['student_id'])) {
-    $student_id = (int)$_SESSION['student_id'];
-} elseif (isset($_GET['student_id'])) {
-    $student_id = (int)$_GET['student_id'];
-} else {
-    // Fallback to fetch the first valid student from the database if no session exists
-    try {
-        $stmt_fallback = $pdo->query("SELECT id FROM students ORDER BY id ASC LIMIT 1");
-        $student_id = (int)$stmt_fallback->fetchColumn();
-        if (!$student_id) {
-            $student_id = 3; // Absolute fallback if students table is empty
-        }
-    } catch (Exception $e) {
-        $student_id = 3;
-    }
-}
+$student_id = 3;
 
 // Fetch Student Info from DB
 try {
@@ -41,7 +20,7 @@ if (!$student) {
     ];
 }
 
-$classroom_id = $student['classroom_id'] ?? 1;
+$classroom_id = $student['classroom_id'] ?? 3;
 
 // Handle AJAX submission of quiz answers
 
