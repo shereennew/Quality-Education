@@ -353,7 +353,7 @@ $worldHeight = 430 + (($rows - 1) * 330);
 
             gap: 10px;
 
-            cursor: pointer;
+            cursor: default;
 
             color: #2c3e50;
 
@@ -383,72 +383,6 @@ $worldHeight = 430 + (($rows - 1) * 330);
             font-weight: 900;
         }
 
-
-        .profile-dropdown {
-
-            position: absolute;
-
-            right: 0;
-
-            top: 61px;
-
-            width: 220px;
-
-            background: white;
-
-            border:
-                1px solid #dce5f0;
-
-            border-radius: 17px;
-
-            padding: 9px;
-
-            box-shadow:
-                0 14px 30px rgba(55, 80, 110, .16);
-
-            display: none;
-        }
-
-
-        .profile-dropdown.show {
-
-            display: block;
-        }
-
-
-        .dropdown-name {
-
-            padding: 12px;
-
-            border-bottom:
-                1px solid #e7edf4;
-
-            font-weight: 900;
-        }
-
-
-        .profile-dropdown a {
-
-            display: block;
-
-            padding: 12px;
-
-            margin-top: 3px;
-
-            border-radius: 10px;
-
-            color: #2c3e50;
-
-            text-decoration: none;
-
-            font-weight: 700;
-        }
-
-
-        .profile-dropdown a:hover {
-
-            background: #f0f4f9;
-        }
 
 
         /* =====================================================
@@ -1971,6 +1905,10 @@ $worldHeight = 430 + (($rows - 1) * 330);
                     Home
                 </a>
 
+                <a href="discussion.php">
+                    Discussion
+                </a>
+
                 <a href="module.php">
                     Modules
                 </a>
@@ -1979,15 +1917,16 @@ $worldHeight = 430 + (($rows - 1) * 330);
                     Quizzes
                 </a>
 
+                <a href="history.php">
+                    History
+                </a>
+
             </div>
 
 
             <div class="profile-area">
-
-                <button class="profile-button" type="button" onclick="toggleProfile()">
-
+                <div class="profile-button">
                     <div class="avatar">
-
                         <?= htmlspecialchars(
                             strtoupper(
                                 substr(
@@ -1997,47 +1936,14 @@ $worldHeight = 430 + (($rows - 1) * 330);
                                 )
                             )
                         ) ?>
-
                     </div>
-
 
                     <span class="profile-name">
-
                         <?= htmlspecialchars(
                             $student['full_name']
                         ) ?>
-
                     </span>
-
-                    <span>▾</span>
-
-                </button>
-
-
-                <div class="profile-dropdown" id="profileDropdown">
-
-                    <div class="dropdown-name">
-
-                        <?= htmlspecialchars(
-                            $student['full_name']
-                        ) ?>
-
-                    </div>
-
-                    <a href="#">
-                        Profile
-                    </a>
-
-                    <a href="#">
-                        Settings
-                    </a>
-
-                    <a href="#">
-                        Sign Out
-                    </a>
-
                 </div>
-
             </div>
 
         </div>
@@ -2099,20 +2005,6 @@ $worldHeight = 430 + (($rows - 1) * 330);
 
 
             <div class="student-stats">
-
-                <div class="stat-pill">
-
-                    Level
-                    <?= (int) $student['level'] ?>
-
-                </div>
-
-                <div class="stat-pill">
-
-                    <?= (int) $student['xp'] ?>
-                    XP
-
-                </div>
 
                 <div class="stat-pill">
 
@@ -2488,52 +2380,7 @@ $worldHeight = 430 + (($rows - 1) * 330);
     </main>
 
 
-    <script>
-
-        function toggleProfile() {
-
-            document
-                .getElementById(
-                    'profileDropdown'
-                )
-                .classList
-                .toggle('show');
-        }
-
-
-        document.addEventListener(
-            'click',
-            function (event) {
-
-                const button =
-                    document.querySelector(
-                        '.profile-button'
-                    );
-
-                const dropdown =
-                    document.getElementById(
-                        'profileDropdown'
-                    );
-
-
-                if (
-                    button
-                    &&
-                    dropdown
-                    &&
-                    !button.contains(event.target)
-                    &&
-                    !dropdown.contains(event.target)
-                ) {
-
-                    dropdown
-                        .classList
-                        .remove('show');
-                }
-            }
-        );
-
-    </script>
+    
 
 
 </body>
