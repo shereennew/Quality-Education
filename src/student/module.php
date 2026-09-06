@@ -6,7 +6,7 @@ session_start();
 
 require_once __DIR__ . '/../config/db.php';
 
-$student_id = 1;
+$student_id = 3;
 
 // Fetch Student Info from DB
 try {

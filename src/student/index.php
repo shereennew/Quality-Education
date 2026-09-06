@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config/db.php';
 // -------------------------------------------------------------------------
 // 1. Dynamic Student Data Fetching
 // -------------------------------------------------------------------------
-$student_id = 1;
+$student_id = 3;
 
 $stmt_student = $pdo->prepare("
     SELECT s.id, s.name, s.score AS xp, c.name AS classroom_name
@@ -736,12 +736,12 @@ preg_match(
             } elseif ($levelColor === 'red') {
 
                 $pinColor =
-                    "bg-rose-100 border-rose-400 text-rose-700 hover:bg-rose-200 cursor-pointer hover:scale-110 shadow-rose-200/50 shadow-lg";
+                    "bg-rose-200 border-rose-400 text-rose-700 hover:bg-rose-200 cursor-pointer hover:scale-110 shadow-rose-200/50 shadow-lg";
 
             } elseif ($levelColor === 'orange') {
 
                 $pinColor =
-                    "bg-orange-100 border-orange-400 text-orange-700 hover:bg-orange-200 cursor-pointer hover:scale-110 shadow-orange-200/50 shadow-lg";
+                    "bg-orange-200 border-orange-400 text-orange-700 hover:bg-orange-200 cursor-pointer hover:scale-110 shadow-orange-200/50 shadow-lg";
 
             } elseif ($levelColor === 'green') {
 
@@ -752,7 +752,7 @@ preg_match(
 
                 // Not Assessed
                 $pinColor =
-                    "bg-slate-100 border-slate-300 text-slate-600 hover:bg-slate-200 cursor-pointer hover:scale-110 shadow-slate-200/50 shadow-lg";
+                    "bg-slate-200 border-slate-300 text-slate-600 hover:bg-slate-200 cursor-pointer hover:scale-110 shadow-slate-200/50 shadow-lg";
             }
 
             ?>
@@ -788,25 +788,33 @@ preg_match(
 
                         <div
                             class="w-16 h-16 rounded-full p-[4px] shadow-lg transition-all duration-200 group-hover:scale-110"
-                            style="
-                                background: conic-gradient(
-                                    <?= $levelColor === 'red'
-                                        ? '#f43f5e'
-                                        : ($levelColor === 'orange'
-                                            ? '#f97316'
-                                            : ($levelColor === 'green'
-                                                ? '#10b981'
-                                                : '#94a3b8'))
-                                    ?>
-                                    <?= $progress ?>%,
-                                    #e2e8f0 <?= $progress ?>%
-                                );
-                            "
+style="
+    background: conic-gradient(
+        <?= $levelColor === 'red'
+            ? '#f43f5e'
+            : ($levelColor === 'orange'
+                ? '#f97316'
+                : ($levelColor === 'green'
+                    ? '#10b981'
+                    : '#94a3b8'))
+        ?>
+        <?= $progress ?>%,
+        #e2e8f0 <?= $progress ?>%
+    );
+"
                         >
 
                             <div
-                                class="w-full h-full rounded-full bg-white flex flex-col items-center justify-center border-2 border-white"
-                            >
+class="w-full h-full rounded-full flex flex-col items-center justify-center border-2 border-white
+    <?= $levelColor === 'red'
+        ? 'bg-rose-200'
+        : ($levelColor === 'orange'
+            ? 'bg-orange-200'
+            : ($levelColor === 'green'
+                ? 'bg-emerald-500'
+                : 'bg-slate-200'))
+    ?>"
+                                >
 
                                 <span
                                     class="text-lg font-black text-pastel-text leading-none"

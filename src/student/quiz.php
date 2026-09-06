@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 
-$student_id = 1;
+$student_id = 3;
 
 // Fetch Student Info
 $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
