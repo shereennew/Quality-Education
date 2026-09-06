@@ -422,9 +422,10 @@ foreach ($raw_quizzes as $quiz) {
        <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_info['title']) ?></h1>
                 <p class="text-sm text-slate-500 mt-0.5"><?= htmlspecialchars($chapter_info['topic']) ?></p>
             </div>
-            <a href="module.php?chap=<?= $selected_chap_id ?>" class="text-xs font-semibold px-3 py-2 bg-blue-50 text-pastel-hover hover:bg-blue-100 rounded-xl border border-blue-100 transition">
-                ← Back to Module Notes
-            </a>
+<a href="module.php?chap=<?= $selected_chap_id ?>"
+   class="text-base font-bold px-5 py-3 bg-blue-50 text-pastel-hover hover:bg-blue-100 rounded-xl border border-blue-100 transition">
+    ← Back to Module Notes
+</a>
         </div>
 
         <!-- QUIZ MENU SELECTION VIEW -->
@@ -449,15 +450,16 @@ foreach ($raw_quizzes as $quiz) {
                class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
 
                 <div>
-<span class="text-lg font-extrabold text-slate-700">
-    Chapter <?= $id ?>
+<span class="text-xl font-extrabold text-slate-700">
+        Chapter <?= $id ?>
 </span>
 
                 </div>
 
-                <span class="text-xs font-semibold text-slate-400">
-                    <?= $id === $selected_chap_id ? 'Active 📍' : 'Select' ?>
-                </span>
+<span class="text-base font-bold text-slate-500">
+    <?= $id === $selected_chap_id ? 'Active 📍' : 'Select' ?>
+</span>
+
 
             </a>
         <?php endforeach; ?>
