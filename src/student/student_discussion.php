@@ -3,7 +3,7 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 
 // Session / Active Student Handling
-$student_id = $_SESSION['student_id'] ?? 1;
+$student_id = 3;
 $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
 $stmt_student->execute([$student_id]);
 $current_student = $stmt_student->fetch();
@@ -16,7 +16,7 @@ $active_tab = $_GET['page'] ?? 'discussion';
 $nav_items = [
     'home'        => ['label' => 'Home',        'url' => 'student_dashboard.php'],
     'module'      => ['label' => 'Modules',     'url' => 'module.php'],
-    'quiz'        => ['label' => 'Quizzes',     'url' => 'quiz.php'],
+    'quiz'        => ['label' => 'Math Helper',     'url' => 'mathhelper.php'],
     'discussion'  => ['label' => 'Discussion',  'url' => 'student_discussion.php'],
     'math_helper' => ['label' => 'Math Helper', 'url' => 'math_helper.php']
 ];

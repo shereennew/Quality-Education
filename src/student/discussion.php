@@ -3,7 +3,7 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 
 // Session / Active Student Handling
-$student_id = $_SESSION['student_id'] ?? 1;
+$student_id = 3;
 $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
 $stmt_student->execute([$student_id]);
 $current_student = $stmt_student->fetch();
@@ -398,8 +398,8 @@ unset($post);
                     Modules
                 </a>
 
-                <a href="quiz.php">
-                    Quizzes
+                <a href="mathhelper.php">
+                    Math Helper
                 </a>
 
                 <a href="history.php">

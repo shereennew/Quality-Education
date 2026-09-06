@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/ai_quiz_helper.php';
 
-$student_id = 1;
+$student_id = 3;
 
 // Fetch Student Info
 $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
@@ -41,12 +41,20 @@ $assessments = $stmt_assessments->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch ONLY incorrect questions for review for this island
 $stmt_incorrect = $pdo->prepare("
-    SELECT sa.*, a.title as quiz_title 
-    FROM student_answers sa
-    JOIN student_assessments a ON sa.assessment_id = a.id
-    WHERE a.student_id = ? AND a.island_id = ? AND sa.is_correct = 0
-    ORDER BY sa.id DESC
+    SELECT 
+        sa.*,
+        a.title AS quiz_title,
+        a.type AS quiz_type,
+        a.submitted_at
+    FROM student_quiz_answers sa
+    JOIN student_assessments a 
+        ON sa.assessment_id = a.id
+    WHERE a.student_id = ?
+      AND a.island_id = ?
+      AND sa.is_correct = 0
+    ORDER BY a.submitted_at DESC, sa.id DESC
 ");
+
 $stmt_incorrect->execute([$student_id, $selectedIsland]);
 $incorrectAnswers = $stmt_incorrect->fetchAll(PDO::FETCH_ASSOC);
 
@@ -337,8 +345,8 @@ try {
                     Modules
                 </a>
 
-                <a href="quiz.php">
-                    Quizzes
+                <a href="mathhelper.php">
+                    Math Helper
                 </a>
 
                 <a href="history.php" class="active">
@@ -422,7 +430,7 @@ try {
             <!-- COMPLETED QUIZZES & TESTS (CLICKABLE SUMMARY ONLY) -->
             <div class="bg-pastel-card border border-pastel-nav p-6 rounded-2xl shadow-md">
                 <h2 class="text-lg font-black text-pastel-text mb-4 flex items-center gap-2">
-                    <span>🎯</span> Completed Quizzes & Tests
+                    <span>🎯</span> Completed Quizzes & Tests & Lessons
                 </h2>
 
                 <?php if (empty($assessments)): ?>
@@ -540,41 +548,122 @@ try {
             <!-- SEPARATE SECTION: MISSED QUESTIONS / FOCUS AREAS -->
             <div class="bg-pastel-card border border-pastel-nav p-6 rounded-2xl shadow-md">
                 <h2 class="text-lg font-black text-pastel-text mb-1 flex items-center gap-2">
-                    <span>⚠️</span> Focus Areas (Incorrect Questions)
+                    <span>⚠️</span> Focus Areas
                 </h2>
                 <p class="text-xs text-slate-400 mb-4">Only incorrect items from your quizzes and tests are highlighted here for quick review.</p>
+<?php if (empty($incorrectAnswers)): ?>
 
-                <?php if (empty($incorrectAnswers)): ?>
-                    <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold flex items-center gap-2">
-                        <span>🎉</span> No incorrect questions recorded for this island!
+    <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200
+                text-emerald-800 text-sm font-semibold flex items-center gap-2">
+        <span>🎉</span>
+        Great job! No incorrect questions recorded for this chapter.
+    </div>
+
+<?php else: ?>
+
+    <div class="space-y-4">
+
+        <?php foreach ($incorrectAnswers as $q): ?>
+
+            <div class="p-5 rounded-xl bg-rose-50 border border-rose-200">
+
+                <!-- Question + Quiz Name -->
+                <div class="flex justify-between items-start gap-3">
+
+                    <div class="flex-1">
+
+                        <span class="text-[10px] font-bold uppercase
+                                     tracking-wider text-slate-400">
+                            <?= htmlspecialchars($q['quiz_type']) ?>
+                        </span>
+
+                        <h4 class="font-bold text-sm text-slate-800 mt-1">
+                            <?= htmlspecialchars($q['question_text']) ?>
+                        </h4>
+
                     </div>
-                <?php else: ?>
-                    <div class="space-y-3">
-                        <?php foreach ($incorrectAnswers as $q): ?>
-                            <div class="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-950">
-                                <div class="flex justify-between items-start gap-2">
-                                    <h4 class="font-bold text-sm text-slate-800"><?= htmlspecialchars($q['question_text']) ?></h4>
-                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-200 text-rose-800 uppercase flex-shrink-0"><?= htmlspecialchars($q['quiz_title']) ?></span>
-                                </div>
-                                <div class="mt-2 text-xs grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <div class="bg-white/80 p-2 rounded border border-rose-200">
-                                        <span class="text-slate-400 block text-[10px] uppercase font-bold">Your Answer</span>
-                                        <span class="font-bold text-rose-700"><?= htmlspecialchars($q['student_answer']) ?></span>
-                                    </div>
-                                    <div class="bg-white/80 p-2 rounded border border-rose-200">
-                                        <span class="text-slate-400 block text-[10px] uppercase font-bold">Correct Answer</span>
-                                        <span class="font-bold text-emerald-700"><?= htmlspecialchars($q['correct_answer']) ?></span>
-                                    </div>
-                                </div>
-                                <?php if (!empty($q['explanation'])): ?>
-                                    <p class="mt-2 text-xs italic text-slate-600 border-t border-rose-200/60 pt-2">
-                                        💡 <strong>Explanation:</strong> <?= htmlspecialchars($q['explanation']) ?>
-                                    </p>
-                                <?php endif; ?>
+
+                    <span class="text-[10px] font-bold px-2 py-1 rounded
+                                 bg-rose-200 text-rose-800 uppercase
+                                 flex-shrink-0">
+                        Incorrect
+                    </span>
+
+                </div>
+
+
+                <!-- Answers -->
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                    <!-- Your Answer -->
+                    <div class="bg-white p-3 rounded-lg border border-rose-200">
+
+                        <span class="text-[10px] uppercase font-bold
+                                     text-rose-500 block mb-1">
+                            Your Answer
+                        </span>
+
+                        <span class="font-bold text-rose-700 text-sm">
+                            <?= htmlspecialchars($q['student_answer']) ?>
+                        </span>
+
+                    </div>
+
+
+                    <!-- Correct Answer -->
+                    <div class="bg-white p-3 rounded-lg border border-emerald-200">
+
+                        <span class="text-[10px] uppercase font-bold
+                                     text-emerald-600 block mb-1">
+                            Correct Answer
+                        </span>
+
+                        <span class="font-bold text-emerald-700 text-sm">
+                            <?= htmlspecialchars($q['correct_answer']) ?>
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Explanation -->
+                <?php if (!empty($q['explanation'])): ?>
+
+                    <div class="mt-4 pt-3 border-t border-rose-200/60">
+
+                        <div class="flex items-start gap-2">
+
+                            <span class="text-base">💡</span>
+
+                            <div>
+
+                                <span class="text-[10px] uppercase
+                                             tracking-wider font-bold
+                                             text-pastel-primary">
+                                    Explanation
+                                </span>
+
+                                <p class="text-sm text-slate-600
+                                          leading-relaxed mt-1">
+                                    <?= htmlspecialchars($q['explanation']) ?>
+                                </p>
+
                             </div>
-                        <?php endforeach; ?>
+
+                        </div>
+
                     </div>
+
                 <?php endif; ?>
+
+            </div>
+
+        <?php endforeach; ?>
+
+    </div>
+
+<?php endif; ?>
             </div>
 
         </section>

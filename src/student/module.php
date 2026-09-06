@@ -6,7 +6,23 @@ session_start();
 
 require_once __DIR__ . '/../config/db.php';
 
-$student_id = 1;
+// Determine student ID dynamically without hardcoding
+if (isset($_SESSION['student_id'])) {
+    $student_id = (int)$_SESSION['student_id'];
+} elseif (isset($_GET['student_id'])) {
+    $student_id = (int)$_GET['student_id'];
+} else {
+    // Fallback to fetch the first valid student from the database if no session exists
+    try {
+        $stmt_fallback = $pdo->query("SELECT id FROM students ORDER BY id ASC LIMIT 1");
+        $student_id = (int)$stmt_fallback->fetchColumn();
+        if (!$student_id) {
+            $student_id = 3; // Absolute fallback if students table is empty
+        }
+    } catch (Exception $e) {
+        $student_id = 3;
+    }
+}
 
 // Fetch Student Info from DB
 try {
@@ -1033,7 +1049,7 @@ $first_subtopic_key = !empty($subtopic_keys) ? $subtopic_keys[0] : '';
                 <a href="index.php">Home</a>
                 <a href="discussion.php">Discussion</a>
                 <a href="module.php" class="active">Modules</a>
-                <a href="quiz.php">Quizzes</a>
+                <a href="mathhelper.php">Math Helper</a>
                 <a href="history.php">History</a>
             </div>
 

@@ -32,22 +32,54 @@ $student['xp_level'] = max(1, (int) floor(((int)$student['xp']) / 100));
 
 
 // -------------------------------------------------------------------------
-// 2. Dynamic Map Positions
+// 2. Island / Map Configuration
 // -------------------------------------------------------------------------
-// The artwork stays the same, but chapter content now comes from the database.
-// Seven chapter pins are shown per world. If the teacher creates more than
-// seven chapters, World 2 automatically shows Chapters 8-14, and so on.
-$chapter_positions = [
-    ['theme_name' => 'Ancient Pyramid',       'x' => 44, 'y' => 84],
-    ['theme_name' => 'Cherry Blossom Valley', 'x' => 30, 'y' => 48],
-    ['theme_name' => 'Volcanic Jungle',       'x' => 50, 'y' => 48],
-    ['theme_name' => 'Hidden Cove',           'x' => 70, 'y' => 64],
-    ['theme_name' => 'Waterfall Cliffs',      'x' => 70, 'y' => 32],
-    ['theme_name' => 'Frozen Igloo',          'x' => 54, 'y' => 12],
-    ['theme_name' => 'Desert Treasure',       'x' => 32, 'y' => 20],
+// These positions match the existing map design.
+// The database controls the actual chapter unlock and mastery information.
+$island_config = [
+    1 => [
+        'name' => 'Ancient Pyramid',
+        'topic' => 'Arithmetic',
+        'x' => 44,
+        'y' => 84
+    ],
+    2 => [
+        'name' => 'Cherry Blossom Valley',
+        'topic' => 'Multiplication',
+        'x' => 30,
+        'y' => 48
+    ],
+    3 => [
+        'name' => 'Volcanic Jungle',
+        'topic' => 'Fractions',
+        'x' => 50,
+        'y' => 48
+    ],
+    4 => [
+        'name' => 'Hidden Cove',
+        'topic' => 'Geometry',
+        'x' => 70,
+        'y' => 64
+    ],
+    5 => [
+        'name' => 'Waterfall Cliffs',
+        'topic' => 'Measurement',
+        'x' => 70,
+        'y' => 32
+    ],
+    6 => [
+        'name' => 'Frozen Igloo',
+        'topic' => 'Data Handling',
+        'x' => 54,
+        'y' => 12
+    ],
+    7 => [
+        'name' => 'Desert Treasure',
+        'topic' => 'Word Problems',
+        'x' => 32,
+        'y' => 20
+    ],
 ];
-
-$chapters_per_world = count($chapter_positions);
 
 
 // -------------------------------------------------------------------------
@@ -63,11 +95,16 @@ $classroom_id = $stmt_classroom->fetchColumn();
 
 
 // -------------------------------------------------------------------------
-// 4. Get ALL Teacher-Created Chapters
+// 4. Get Classroom Chapter Unlock Information
 // -------------------------------------------------------------------------
-$chapter_rows = [];
+// classroom_chapters is the source of truth for chapter unlocking.
+//
+// The rows are ordered by their database ID and mapped to Chapter 1, 2, 3...
+// because the current system does not have a separate chapter number column.
+$chapter_unlock = [];
 
 if ($classroom_id) {
+
     $stmt_chapters = $pdo->prepare("
         SELECT id, chapter_name, is_unlocked
         FROM classroom_chapters
@@ -76,15 +113,20 @@ if ($classroom_id) {
     ");
 
     $stmt_chapters->execute([$classroom_id]);
+
     $chapter_rows = $stmt_chapters->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($chapter_rows as $index => $row) {
+
+        $chapter_num = $index + 1;
+
+        $chapter_unlock[$chapter_num] = [
+            'chapter_name' => $row['chapter_name'],
+            'is_unlocked' => (int)$row['is_unlocked']
+        ];
+    }
 }
 
-$total_chapters = count($chapter_rows);
-$total_worlds = max(1, (int) ceil($total_chapters / $chapters_per_world));
-$current_world = max(1, (int) ($_GET['world'] ?? 1));
-$current_world = min($current_world, $total_worlds);
-$world_offset = ($current_world - 1) * $chapters_per_world;
-$visible_chapters = array_slice($chapter_rows, $world_offset, $chapters_per_world);
 
 // -------------------------------------------------------------------------
 // 5. Get Student Chapter Mastery Level
@@ -123,33 +165,63 @@ foreach ($level_rows as $row) {
 
 
 // -------------------------------------------------------------------------
-// 6. Build Visible Island Data For This World
+// 6. Build Island Data
 // -------------------------------------------------------------------------
 $islands = [];
 
-foreach ($visible_chapters as $slot => $row) {
-    $chapter_num = $world_offset + $slot + 1;
-    $position = $chapter_positions[$slot];
-    $chapter_name = $row['chapter_name'];
-    $isUnlocked = (int) $row['is_unlocked'] === 1;
+foreach ($island_config as $id => $config) {
+
+    // -------------------------------------------------------------
+    // Chapter unlock
+    // -------------------------------------------------------------
+    $isUnlocked =
+        isset($chapter_unlock[$id]) &&
+        $chapter_unlock[$id]['is_unlocked'] === 1;
+
+    $chapter_name = $chapter_unlock[$id]['chapter_name'] ?? null;
+
 
     // -------------------------------------------------------------
     // Total number of subtopics
     // -------------------------------------------------------------
-    $stmt_total = $pdo->prepare("
-        SELECT COUNT(DISTINCT subtopic_name)
-        FROM chapter_materials
-        WHERE chapter_name = ?
-          AND subtopic_name IS NOT NULL
-          AND TRIM(subtopic_name) != ''
-    ");
-    $stmt_total->execute([$chapter_name]);
-    $total_subtopics = (int) $stmt_total->fetchColumn();
+    $total_subtopics = 0;
+
+    if ($chapter_name) {
+
+        $stmt_total = $pdo->prepare("
+            SELECT COUNT(DISTINCT subtopic_name)
+            FROM chapter_materials
+            WHERE chapter_name = ?
+              AND subtopic_name IS NOT NULL
+              AND TRIM(subtopic_name) != ''
+        ");
+
+        $stmt_total->execute([$chapter_name]);
+
+        $total_subtopics = (int)$stmt_total->fetchColumn();
+    }
+
 
     // -------------------------------------------------------------
     // Completed subtopic quizzes
     // -------------------------------------------------------------
-    $completed_subtopic_numbers = [];
+    //
+    // A subtopic is considered completed when its Quiz assessment
+    // exists in student_assessments.
+    //
+    // Example:
+    // Subtopic 1 Assessment
+    // Subtopic 2 Assessment
+    //
+    // These count as:
+    // 2 completed subtopics
+    //
+    // Chapter Test is NOT included here.
+    // -------------------------------------------------------------
+$completed_subtopics = 0;
+$completed_subtopic_numbers = [];
+
+if ($chapter_name) {
 
     $stmt_completed = $pdo->prepare("
         SELECT title
@@ -159,59 +231,107 @@ foreach ($visible_chapters as $slot => $row) {
           AND type = 'Quiz'
     ");
 
-    $stmt_completed->execute([$student_id, $chapter_num]);
+    $stmt_completed->execute([
+        $student_id,
+        $id
+    ]);
+
     $completed_assessments = $stmt_completed->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($completed_assessments as $assessment) {
+
         $title = trim($assessment['title']);
 
-        if (preg_match('/Subtopic\s+([\d.]+)\s+Assessment/i', $title, $match)) {
-            $completed_subtopic_numbers[$match[1]] = true;
+        if (
+preg_match(
+    '/Subtopic\s+([\d.]+)\s+Assessment/i',
+    $title,
+    $match
+)
+
+        ) {
+            $subtopic_number = $match[1];
+
+            $completed_subtopic_numbers[$subtopic_number] = true;
         }
     }
 
     $completed_subtopics = count($completed_subtopic_numbers);
-    $progress_percentage = $total_subtopics > 0
-        ? min(100, (int) round(($completed_subtopics / $total_subtopics) * 100))
-        : 0;
+}
 
     // -------------------------------------------------------------
-    // Chapter mastery level
+    // Calculate Subtopic Progress
     // -------------------------------------------------------------
-    $level = $chapter_levels[$chapter_num]['level'] ?? 0;
+    if ($total_subtopics > 0) {
+
+        $progress_percentage = round(
+            ($completed_subtopics / $total_subtopics) * 100
+        );
+
+        // Make sure it never exceeds 100
+        $progress_percentage = min(100, $progress_percentage);
+
+    } else {
+
+        $progress_percentage = 0;
+    }
+
+
+    // -------------------------------------------------------------
+    // Get Chapter Mastery Level
+    // -------------------------------------------------------------
+    $level = $chapter_levels[$id]['level'] ?? 0;
+
 
     if ($level === 1) {
+
         $level_name = 'Beginner';
         $level_description = 'Needs more foundational practice';
         $level_color = 'red';
+
     } elseif ($level === 2) {
+
         $level_name = 'Intermediate';
         $level_description = 'Developing understanding';
         $level_color = 'orange';
+
     } elseif ($level === 3) {
+
         $level_name = 'Master';
         $level_description = 'Strong understanding';
         $level_color = 'green';
+
     } else {
+
         $level_name = 'Not Assessed';
         $level_description = 'Chapter Test not completed';
         $level_color = 'gray';
     }
 
-    $islands[$chapter_num] = [
-        'name' => $position['theme_name'],
-        'topic' => $chapter_name,
-        'x' => $position['x'],
-        'y' => $position['y'],
+
+    // -------------------------------------------------------------
+    // Build Final Island Object
+    // -------------------------------------------------------------
+    $islands[$id] = [
+        'name' => $config['name'],
+        'topic' => $config['topic'],
+        'x' => $config['x'],
+        'y' => $config['y'],
+
+        // Unlock information
         'unlocked' => $isUnlocked,
         'chapter_name' => $chapter_name,
+
+        // Subtopic progress
         'progress' => $progress_percentage,
         'completed_subtopics' => $completed_subtopics,
         'total_subtopics' => $total_subtopics,
+
+        // Chapter mastery
         'level' => $level,
         'level_name' => $level_name,
         'level_description' => $level_description,
-        'level_color' => $level_color,
+        'level_color' => $level_color
     ];
 }
 ?>
@@ -525,46 +645,6 @@ foreach ($visible_chapters as $slot => $row) {
 
 
     <!-- ============================================================= -->
-    <!-- WORLD NAVIGATION -->
-    <!-- ============================================================= -->
-    <div class="w-full max-w-[85rem] flex items-center justify-between mt-3 mb-3 px-1">
-        <div>
-            <div class="text-lg font-black text-pastel-text">
-                World <?= $current_world ?>
-            </div>
-            <div class="text-xs font-semibold text-pastel-primary">
-                <?php if ($total_chapters > 0): ?>
-                    Chapters <?= $world_offset + 1 ?>-<?= min($world_offset + $chapters_per_world, $total_chapters) ?> of <?= $total_chapters ?>
-                <?php else: ?>
-                    No chapters have been added yet.
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <?php if ($total_worlds > 1): ?>
-            <div class="flex items-center gap-2">
-                <?php if ($current_world > 1): ?>
-                    <a href="?world=<?= $current_world - 1 ?>"
-                       class="px-4 py-2 rounded-xl bg-white border border-pastel-nav font-black text-sm text-pastel-text hover:bg-pastel-nav transition">
-                        ← Previous World
-                    </a>
-                <?php endif; ?>
-
-                <span class="px-4 py-2 rounded-xl bg-pastel-primary text-white font-black text-sm">
-                    <?= $current_world ?> / <?= $total_worlds ?>
-                </span>
-
-                <?php if ($current_world < $total_worlds): ?>
-                    <a href="?world=<?= $current_world + 1 ?>"
-                       class="px-4 py-2 rounded-xl bg-white border border-pastel-nav font-black text-sm text-pastel-text hover:bg-pastel-nav transition">
-                        Next World →
-                    </a>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-    </div>
-
-    <!-- ============================================================= -->
     <!-- MAP CONTAINER -->
     <!-- ============================================================= -->
 
@@ -578,15 +658,6 @@ foreach ($visible_chapters as $slot => $row) {
             class="absolute inset-0 w-full h-full object-cover select-none z-0"
         >
 
-
-        <?php if (empty($islands)): ?>
-            <div class="absolute inset-0 z-20 flex items-center justify-center">
-                <div class="bg-white/95 border border-pastel-nav rounded-2xl shadow-xl px-7 py-5 text-center">
-                    <div class="text-lg font-black text-pastel-text">No chapters yet</div>
-                    <div class="text-sm font-semibold text-slate-500 mt-1">Your teacher can add chapters from the classroom page.</div>
-                </div>
-            </div>
-        <?php endif; ?>
 
         <?php foreach ($islands as $id => $island): ?>
 
@@ -602,6 +673,9 @@ foreach ($visible_chapters as $slot => $row) {
 
             $levelColor = $island['level_color'];
 
+            // ---------------------------------------------------------
+            // Pin style based on mastery level
+            // ---------------------------------------------------------
 
             // ---------------------------------------------------------
             // Pin style based on mastery level
@@ -636,6 +710,9 @@ foreach ($visible_chapters as $slot => $row) {
 
             ?>
 
+            <!-- ===================================================== -->
+            <!-- ISLAND PIN -->
+            <!-- ===================================================== -->
 
             <!-- ===================================================== -->
             <!-- ISLAND PIN -->
@@ -725,6 +802,9 @@ class="w-full h-full rounded-full flex flex-col items-center justify-center bord
                                 <?= htmlspecialchars($island['name']) ?>
                             </div>
 
+                            <div class="mt-1 text-slate-300">
+                                <?= htmlspecialchars($island['topic']) ?>
+                            </div>
 
                             <div class="mt-1 text-slate-300">
                                 <?= htmlspecialchars($island['topic']) ?>
@@ -780,6 +860,11 @@ class="w-full h-full rounded-full flex flex-col items-center justify-center bord
 
                             </div>
 
+                            <div
+                                class="mt-1 text-slate-400 text-[11px]"
+                            >
+                                <?= htmlspecialchars($levelDescription) ?>
+                            </div>
 
                             <div
                                 class="mt-1 text-slate-400 text-[11px]"

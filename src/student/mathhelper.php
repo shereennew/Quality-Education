@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/ai_quiz_helper.php';
 
-$student_id = 1;
+$student_id = 3;
 
 // Fetch Student Info
 $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
@@ -97,7 +97,8 @@ try {
 
 // Fetch student quiz completion history from database if available
 $completed_quiz_ids = [];
-$student_id = 1; // Adjust based on your session/auth variable
+$student_id = 3;
+
 try {
     $stmt_history = $pdo->prepare("SELECT quiz_id FROM student_quiz_history WHERE student_id = ? AND status = 'completed'");
     $stmt_history->execute([$student_id]);
@@ -109,71 +110,39 @@ try {
 // Fetch teacher-assigned quizzes for this chapter from DB
 $raw_quizzes = [];
 try {
-    $stmt_assigned = $pdo->prepare("SELECT * FROM chapter_quizzes WHERE chapter_name = ? ORDER BY id");
+$stmt_assigned = $pdo->prepare("
+    SELECT *
+    FROM teacher_quizzes
+    WHERE chapter_name = ?
+    ORDER BY id
+");
     $stmt_assigned->execute([$chapter_info['title']]);
     $raw_quizzes = $stmt_assigned->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     $raw_quizzes = [];
 }
 
-// Map quizzes subtopic-by-subtopic identically to module.php
+
+// Group teacher-assigned quizzes by quiz title
 $assigned_quizzes = [];
-if (!empty($subtopics_list)) {
-    foreach ($subtopics_list as $index => $sub) {
-        $current_subtopic_idx = $index + 1;
-        $subtopic_num = $sub['subtopic_name'] ?? $current_subtopic_idx;
-        $subtopic_title =  $subtopic_num . ': ' . ($sub['title'] ?? 'Practice Quiz');
-        
-        $matched_quizzes = [];
-        foreach ($raw_quizzes as $qIndex => $q) {
-            $matches_subtopic = false;
-            if (isset($q['subtopic_name']) && (string)$q['subtopic_name'] === (string)$subtopic_num) {
-                $matches_subtopic = true;
-            } elseif ($qIndex % count($subtopics_list) === $index) {
-                $matches_subtopic = true;
-            }
 
-            if ($matches_subtopic) {
-                $matched_quizzes[] = $q;
-            }
-        }
+foreach ($raw_quizzes as $quiz) {
+    $quiz_title = $quiz['title'];
 
-        // Guarantee at least one quiz per subtopic
-        if (empty($matched_quizzes)) {
-            $matched_quizzes[] = [
-                'id' => 'fallback_' . $subtopic_num,
-                'question' => 'Which of the following best describes the core concept covered in ' . ($sub['title'] ?? $subtopic_title) . '?',
-                'option_a' => 'A fundamental rule used for accurate computation and verification.',
-                'option_b' => 'An incorrect method resulting in arithmetic errors.',
-                'option_c' => 'An unrelated historical formula.',
-                'option_d' => 'None of the above.',
-                'correct_option' => 'A'
-            ];
-        }
-
-        $assigned_quizzes[$subtopic_title] = $matched_quizzes;
+    if (!isset($assigned_quizzes[$quiz_title])) {
+        $assigned_quizzes[$quiz_title] = [];
     }
-} else {
-    // Fallback if no chapter materials are found in DB
-    $assigned_quizzes['Chapter Assessment'] = !empty($raw_quizzes) ? $raw_quizzes : [
-        [
-            'id' => 'default_1',
-            'question' => 'Default practice question for this module chapter.',
-            'option_a' => 'Option A',
-            'option_b' => 'Option B',
-            'option_c' => 'Option C',
-            'option_d' => 'Option D',
-            'correct_option' => 'A'
-        ]
-    ];
+
+    $assigned_quizzes[$quiz_title][] = $quiz;
 }
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduHunt - Quizzes</title>
+    <title>EduHunt - Math Helper</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -405,110 +374,128 @@ if (!empty($subtopics_list)) {
     </style>
 </head>
 <body class="bg-pastel-bg text-pastel-text min-h-screen flex flex-col items-center">
+<nav class="main-navbar">
 
-    <!-- NAV BAR -->
-    <nav class="main-navbar">
+    <div class="nav-inner">
 
-        <div class="nav-inner">
+        <a href="index.php" class="brand">
 
+            <div class="brand-icon">
+                E
+            </div>
 
-            <a href="index.php" class="brand">
+            <div class="brand-name">
+                EduHunt
+            </div>
 
-                <div class="brand-icon">
-                    E
-                </div>
+        </a>
 
-                <div class="brand-name">
-                    EduHunt
-                </div>
+        <div class="nav-links">
 
+            <a href="index.php">
+                Home
             </a>
 
+            <a href="discussion.php">
+                Discussion
+            </a>
 
-            <div class="nav-links">
+            <a href="module.php">
+                Modules
+            </a>
 
-                <a href="index.php">
-                    Home
-                </a>
+            <a href="mathhelper.php" class="active">
+                Math Helper
+            </a>
 
-                <a href="discussion.php">
-                    Discussion
-                </a>
-
-                <a href="module.php">
-                    Modules
-                </a>
-
-                <a href="quiz.php" class="active">
-                    Quizzes
-                </a>
-
-                <a href="history.php">
-                    History
-                </a>
-
-            </div>
-
-
-            <div class="profile-area">
-                <div class="profile-button">
-                    <div class="avatar">
-                        <?= htmlspecialchars(
-                            strtoupper(
-                                substr(
-                                    $student['name'],
-                                    0,
-                                    1
-                                )
-                            )
-                        ) ?>
-                    </div>
-
-                    <span class="profile-name">
-                        <?= htmlspecialchars(
-                            $student['name']
-                        ) ?>
-                    </span>
-                </div>
-            </div>
+            <a href="history.php">
+                History
+            </a>
 
         </div>
 
-    </nav>
+        <div class="profile-area">
+            <div class="profile-button">
+
+                <div class="avatar">
+                    <?= htmlspecialchars(
+                        strtoupper(
+                            substr(
+                                $student['name'],
+                                0,
+                                1
+                            )
+                        )
+                    ) ?>
+                </div>
+
+                <span class="profile-name">
+                    <?= htmlspecialchars($student['name']) ?>
+                </span>
+
+            </div>
+        </div>
+
+    </div>
+
+</nav>
 
     <!-- Main Content -->
-    <main class="flex-1 max-w-5xl w-full mx-auto px-4 py-8 mt-6">
-        
+<main class="w-full max-w-[85rem] flex flex-col gap-6 p-4">
+
         <!-- Header Banner -->
         <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <span class="text-xs font-bold text-pastel-primary uppercase tracking-wider">Chapter <?= $selected_chap_id ?></span>
-                <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_info['title']) ?></h1>
+<span class="text-xl font-black text-slate-700 tracking-tight">
+    Chapter <?= $selected_chap_id ?>
+</span>
+
+       <h1 class="text-2xl font-bold text-pastel-text mt-1"><?= htmlspecialchars($chapter_info['title']) ?></h1>
                 <p class="text-sm text-slate-500 mt-0.5"><?= htmlspecialchars($chapter_info['topic']) ?></p>
             </div>
-            <a href="module.php?chap=<?= $selected_chap_id ?>" class="text-xs font-semibold px-3 py-2 bg-blue-50 text-pastel-hover hover:bg-blue-100 rounded-xl border border-blue-100 transition">
-                ← Back to Module Notes
-            </a>
+<a href="module.php?chap=<?= $selected_chap_id ?>"
+   class="text-base font-bold px-5 py-3 bg-blue-50 text-pastel-hover hover:bg-blue-100 rounded-xl border border-blue-100 transition">
+    ← Back to Module Notes
+</a>
         </div>
 
         <!-- QUIZ MENU SELECTION VIEW -->
         <div id="quiz-menu" class="space-y-6">
             
             <!-- Chapter Navigation Selector -->
-            <div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
-                <h3 class="text-sm font-bold text-pastel-text mb-3">Select Chapter Module:</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <?php foreach ($chapters as $id => $chap): ?>
-                        <a href="quiz.php?chapter=<?= $id ?>" class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
-                            <div>
-                                <span class="text-xs font-bold text-pastel-primary">Chapter <?= $id ?></span>
-                                <h4 class="font-bold text-sm text-pastel-text"><?= htmlspecialchars($chap['title']) ?></h4>
-                            </div>
-                            <span class="text-xs font-semibold text-slate-400"><?= $id === $selected_chap_id ? 'Active 📍' : 'Select →' ?></span>
-                        </a>
-                    <?php endforeach; ?>
+<!-- Chapter Navigation Selector -->
+<div class="bg-pastel-card p-6 rounded-2xl border border-blue-100 shadow-sm">
+
+    <div class="mb-5">
+        <h3 class="text-2xl font-extrabold text-pastel-text tracking-tight">
+            Select Chapter Module
+        </h3>
+        <p class="text-sm text-slate-500 mt-1">
+            Choose a chapter to explore and practise.
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <?php foreach ($chapters as $id => $chap): ?>
+            <a href="mathhelper.php?chapter=<?= $id ?>"
+               class="p-4 rounded-xl border-2 transition flex items-center justify-between <?= $id === $selected_chap_id ? 'border-pastel-primary bg-blue-50/50 shadow-sm' : 'border-slate-100 hover:border-pastel-primary/50' ?>">
+
+                <div>
+<span class="text-xl font-extrabold text-slate-700">
+        Chapter <?= $id ?>
+</span>
+
                 </div>
-            </div>
+
+<span class="text-base font-bold text-slate-500">
+    <?= $id === $selected_chap_id ? 'Active 📍' : 'Select' ?>
+</span>
+
+
+            </a>
+        <?php endforeach; ?>
+    </div>
+</div>
 
             <!-- ADAPTIVE AI QUIZ GENERATOR -->
             <div class="bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 p-6 rounded-2xl border border-purple-200 shadow-sm">
@@ -602,8 +589,7 @@ if (!empty($subtopics_list)) {
                 <div class="flex items-start justify-between gap-4 mb-4">
                     <div>
                         <span class="text-xs font-bold text-emerald-600 uppercase tracking-wider">Teacher assigned</span>
-                        <h2 class="text-xl font-bold text-pastel-text mt-0.5">Complete Your Assigned Quizzes</h2>
-                        <p class="text-xs text-slate-600 mt-1">Choose a quiz prepared by your teacher for this chapter to start answering the questions.</p>
+                        <h2 class="text-xl font-bold text-pastel-text mt-0.5">Teacher Assigned Quizzes</h2>
                     </div>
                     <span class="hidden sm:block text-2xl">📝</span>
                 </div>
@@ -651,16 +637,27 @@ if (!empty($subtopics_list)) {
             </div>
 
             <!-- AI Feedback Display Container -->
-            <div id="ai-feedback-container" class="hidden mb-6 p-4 rounded-xl bg-blue-50/70 border border-blue-200">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-base">💡</span>
-                    <h5 class="text-xs font-bold text-pastel-primary uppercase tracking-wider">AI Explanations & Feedback</h5>
-                </div>
-                <p id="ai-feedback-text" class="text-sm text-slate-700 leading-relaxed"></p>
-                <button id="next-question-btn" onclick="proceedToNextQuestion()" class="mt-4 px-4 py-2 bg-pastel-primary text-white text-xs font-bold rounded-xl hover:bg-pastel-hover transition hidden">
-                    Next Question →
-                </button>
-            </div>
+<div id="ai-feedback-container"
+     class="hidden mb-6 p-4 rounded-xl bg-blue-50/70 border border-blue-200">
+
+    <div class="flex items-center gap-2 mb-1">
+        <span class="text-base">💡</span>
+
+        <h5 class="text-xs font-bold text-pastel-primary uppercase tracking-wider">
+            Answer Feedback
+        </h5>
+    </div>
+
+    <div id="ai-feedback-text"
+         class="text-sm text-slate-700 leading-relaxed">
+    </div>
+
+    <button id="next-question-btn"
+            onclick="proceedToNextQuestion()"
+            class="mt-4 px-4 py-2 bg-pastel-primary text-white text-xs font-bold rounded-xl hover:bg-pastel-hover transition hidden">
+        Next Question →
+    </button>
+</div>
 
             <div class="flex justify-between items-center pt-4 border-t border-slate-100">
                 <button onclick="exitQuiz()" class="text-xs font-semibold text-slate-400 hover:text-rose-500 transition">
@@ -739,10 +736,20 @@ if (!empty($subtopics_list)) {
                 explanation: ''
             }));
 
-            if (questions.length === 0) {
-                alert('This assigned quiz has no questions yet.');
-                return;
-            }
+    const questions = rawQuestions.map((question) => ({
+        id: question.id,
+        q: question.question,
+        options: [
+            question.option_a,
+            question.option_b,
+            question.option_c,
+            question.option_d
+        ],
+        ans: ['A', 'B', 'C', 'D'].indexOf(
+            question.correct_option.toUpperCase()
+        ),
+        explanation: question.explanation || 'No explanation available.'
+    }));
 
             document.getElementById('quiz-menu').classList.add('hidden');
             document.getElementById('quiz-result').classList.add('hidden');
@@ -966,8 +973,6 @@ if (!empty($subtopics_list)) {
                     ? 'Correct!'
                     : `Incorrect. The correct answer is ${correctAnswerText}.`;
             }
-
-            document.getElementById('next-question-btn').classList.remove('hidden');
         }
 
         function proceedToNextQuestion() {
