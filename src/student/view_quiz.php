@@ -1,24 +1,40 @@
 <?php
-session_start();
 require_once __DIR__ . '/../config/db.php';
 
+$student_id = 3;
 $assessment_id = isset($_GET['assessment_id']) ? (int)$_GET['assessment_id'] : 0;
-$student_id = $_SESSION['student_id'] ?? 1;
+
+if ($assessment_id <= 0) {
+    die("Invalid assessment ID.");
+}
 
 // Fetch assessment header details
-$stmt = $pdo->prepare("SELECT * FROM student_assessments WHERE id = ? AND student_id = ?");
+$stmt = $pdo->prepare("
+    SELECT *
+    FROM student_assessments
+    WHERE id = ?
+      AND student_id = ?
+");
 $stmt->execute([$assessment_id, $student_id]);
+
 $assessment = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$assessment) {
     die("Assessment record not found.");
 }
 
-// Fetch all questions and recorded answers for this submission
-$q_stmt = $pdo->prepare("SELECT * FROM student_answers WHERE assessment_id = ?");
+// Fetch all questions and recorded answers
+$q_stmt = $pdo->prepare("
+    SELECT *
+    FROM student_quiz_answers
+    WHERE assessment_id = ?
+    ORDER BY id ASC
+");
+
 $q_stmt->execute([$assessment_id]);
 $questions = $q_stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,7 +48,10 @@ $questions = $q_stmt->fetchAll(PDO::FETCH_ASSOC);
         <!-- Header -->
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
             <div>
-                <a href="history.php?island_id=<?= $assessment['island_id'] ?>" class="text-xs font-bold text-indigo-600 hover:underline">← Back to History</a>
+<a href="history.php?island_id=<?= $assessment['island_id'] ?>"
+   class="inline-flex items-center gap-2 text-base font-bold px-5 py-3 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl border border-indigo-200 transition-all shadow-sm">
+    ← Back to History
+</a>
                 <h1 class="text-2xl font-black mt-1"><?= htmlspecialchars($assessment['title']) ?></h1>
                 <p class="text-xs text-slate-500">Submitted on: <?= $assessment['submitted_at'] ?></p>
             </div>

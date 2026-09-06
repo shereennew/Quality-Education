@@ -17,10 +17,10 @@ if (isset($_SESSION['student_id'])) {
         $stmt_fallback = $pdo->query("SELECT id FROM students ORDER BY id ASC LIMIT 1");
         $student_id = (int)$stmt_fallback->fetchColumn();
         if (!$student_id) {
-            $student_id = 1; // Absolute fallback if students table is empty
+            $student_id = 3; // Absolute fallback if students table is empty
         }
     } catch (Exception $e) {
-        $student_id = 1;
+        $student_id = 3;
     }
 }
 

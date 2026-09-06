@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/db.php';
 
-$student_id = 1;
+$student_id = 3;
 
 // Fetch Student Info
 $stmt_student = $pdo->prepare("SELECT * FROM students WHERE id = ?");
@@ -66,7 +66,7 @@ try {
 
 // Fetch student quiz completion history from database if available
 $completed_quiz_ids = [];
-$student_id = 1;
+$student_id = 3;
 
 try {
     $stmt_history = $pdo->prepare("SELECT quiz_id FROM student_quiz_history WHERE student_id = ? AND status = 'completed'");
