@@ -83,18 +83,19 @@ try {
     );");
 
     $pdo->exec("CREATE TABLE chapter_quizzes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    chapter_name TEXT NOT NULL,
-    subtopic_name TEXT DEFAULT NULL,
-    title TEXT DEFAULT NULL,
-    question TEXT NOT NULL,
-    option_a TEXT NOT NULL,
-    option_b TEXT NOT NULL,
-    option_c TEXT NOT NULL,
-    option_d TEXT NOT NULL,
-    correct_option TEXT NOT NULL,
-    explanation TEXT,
-    score INTEGER DEFAULT 1 NOT NULL
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chapter_number INTEGER DEFAULT 1 NOT NULL,
+        chapter_name TEXT NOT NULL,
+        subtopic_name TEXT DEFAULT NULL,
+        title TEXT DEFAULT NULL,
+        question TEXT NOT NULL,
+        option_a TEXT NOT NULL,
+        option_b TEXT NOT NULL,
+        option_c TEXT NOT NULL,
+        option_d TEXT NOT NULL,
+        correct_option TEXT NOT NULL,
+        explanation TEXT,
+        score INTEGER DEFAULT 1 NOT NULL
     );");
 
     $pdo->exec("CREATE TABLE teacher_quiz_feedback (
@@ -129,6 +130,7 @@ try {
     $pdo->exec("CREATE TABLE classroom_chapters (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         classroom_id INTEGER NOT NULL, 
+        chapter_number INTEGER DEFAULT 1 NOT NULL,
         chapter_name TEXT NOT NULL, 
         is_unlocked INTEGER DEFAULT 0, 
         FOREIGN KEY(classroom_id) REFERENCES classrooms(id) ON DELETE CASCADE
@@ -136,6 +138,7 @@ try {
 
     $pdo->exec("CREATE TABLE chapter_materials (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chapter_number INTEGER DEFAULT 1 NOT NULL,
         chapter_name TEXT NOT NULL,
         subtopic_name TEXT DEFAULT NULL,
         title TEXT NOT NULL,
@@ -188,7 +191,7 @@ try {
 
     // 3. Seed Students mapped to specific classrooms via classroom_id
     $all_students = [
-        [1, 'Amina Yusuf', 'Mastering', 95],       // Class 1
+        [1, 'Amina Yusuf', 'Mastering', 95],      // Class 1
         [1, 'Bao Nguyen', 'On Track', 82],         // Class 1
         [1, 'Carlos Mendez', 'Struggling', 60],    // Class 1
         [2, 'Diana Prince', 'Mastering', 90],      // Class 2
@@ -200,20 +203,22 @@ try {
         $stmt_stu->execute([$stu[0], $stu[1], $stu[2], $stu[3]]);
     }
 
-    $pdo->exec("INSERT INTO classroom_chapters (classroom_id, chapter_name, is_unlocked) VALUES 
-        (1, 'Ancient Pyramid: Fundamentals', 1),
-        (1, 'Cherry Blossom: Multiplications', 1),
-        (1, 'Volcanic Jungle: Fractions & Decimals', 1),
-        (2, 'Ancient Pyramid: Fundamentals', 1),
-        (3, 'Ancient Pyramid: Fundamentals', 1);");
+    $pdo->exec("INSERT INTO classroom_chapters (classroom_id, chapter_number, chapter_name, is_unlocked) VALUES 
+        (1, 1, 'Ancient Pyramid: Fundamentals', 1),
+        (1, 2, 'Cherry Blossom: Multiplications', 1),
+        (1, 3, 'Volcanic Jungle: Fractions & Decimals', 1),
+        (1, 4, 'The Cave: Geometry', 0),
+        (2, 1, 'Ancient Pyramid: Fundamentals', 1),
+        (3, 1, 'Ancient Pyramid: Fundamentals', 1);");
 
-    $pdo->exec("INSERT INTO chapter_materials (chapter_name, subtopic_name, title, file_path) VALUES 
-        ('Ancient Pyramid: Fundamentals', '1.1', 'Introduction to Fundamentals & Place Value', NULL),
-        ('Ancient Pyramid: Fundamentals', '1.2', 'Basic Operations & Fractions Review', NULL),
-        ('Cherry Blossom: Multiplications', '2.1', 'Multiplication Tables & Factors', NULL),
-        ('Cherry Blossom: Multiplications', '2.2', 'Simplifying Fractions to Lowest Terms', NULL),
-        ('Volcanic Jungle: Fractions & Decimals', '3.1', 'Mixed Numbers and Improper Fractions', NULL),
-        ('Volcanic Jungle: Fractions & Decimals', '3.2', 'Decimal Conversion and Advanced Operations', NULL);");
+    $pdo->exec("INSERT INTO chapter_materials (chapter_number, chapter_name, subtopic_name, title, file_path) VALUES 
+        (1, 'Ancient Pyramid: Fundamentals', '1.1', 'Introduction to Fundamentals & Place Value', NULL),
+        (1, 'Ancient Pyramid: Fundamentals', '1.2', 'Basic Operations & Fractions Review', NULL),
+        (2, 'Cherry Blossom: Multiplications', '2.1', 'Multiplication Tables & Factors', NULL),
+        (2, 'Cherry Blossom: Multiplications', '2.2', 'Simplifying Fractions to Lowest Terms', NULL),
+        (3, 'Volcanic Jungle: Fractions & Decimals', '3.1', 'Mixed Numbers and Improper Fractions', NULL),
+        (3, 'Volcanic Jungle: Fractions & Decimals', '3.2', 'Decimal Conversion and Advanced Operations', NULL),
+        (4, 'The Cave: Geometry', '4.1', 'Introduction to Shapes and Angles', NULL);");
 
     $pdo->exec("INSERT INTO student_progress (student_id, island_id, chapter_name, level, status) VALUES 
         (1, 1, 'Ancient Pyramid: Fundamentals', 0, 'In Progress'),
@@ -244,6 +249,7 @@ $chapter_quizzes_data = [
 
     // Subtopic 1.1
     [
+        1,
         'Ancient Pyramid: Fundamentals',
         '1.1',
         'Subtopic 1.1 Assessment',
@@ -258,6 +264,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        1,
         'Ancient Pyramid: Fundamentals',
         '1.1',
         'Subtopic 1.1 Assessment',
@@ -272,6 +279,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        1,
         'Ancient Pyramid: Fundamentals',
         '1.1',
         'Subtopic 1.1 Assessment',
@@ -286,6 +294,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        1,
         'Ancient Pyramid: Fundamentals',
         '1.1',
         'Subtopic 1.1 Assessment',
@@ -301,6 +310,7 @@ $chapter_quizzes_data = [
 
     // Subtopic 1.2
     [
+        1,
         'Ancient Pyramid: Fundamentals',
         '1.2',
         'Subtopic 1.2 Assessment',
@@ -315,6 +325,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        1,
         'Ancient Pyramid: Fundamentals',
         '1.2',
         'Subtopic 1.2 Assessment',
@@ -329,6 +340,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        1,
         'Ancient Pyramid: Fundamentals',
         '1.2',
         'Subtopic 1.2 Assessment',
@@ -343,6 +355,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        1,
         'Ancient Pyramid: Fundamentals',
         '1.2',
         'Subtopic 1.2 Assessment',
@@ -362,6 +375,7 @@ $chapter_quizzes_data = [
 
     // Subtopic 2.1
     [
+        2,
         'Cherry Blossom: Multiplications',
         '2.1',
         'Subtopic 2.1 Assessment',
@@ -376,6 +390,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        2,
         'Cherry Blossom: Multiplications',
         '2.1',
         'Subtopic 2.1 Assessment',
@@ -390,6 +405,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        2,
         'Cherry Blossom: Multiplications',
         '2.1',
         'Subtopic 2.1 Assessment',
@@ -404,6 +420,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        2,
         'Cherry Blossom: Multiplications',
         '2.1',
         'Subtopic 2.1 Assessment',
@@ -419,6 +436,7 @@ $chapter_quizzes_data = [
 
     // Subtopic 2.2
     [
+        2,
         'Cherry Blossom: Multiplications',
         '2.2',
         'Subtopic 2.2 Assessment',
@@ -433,6 +451,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        2,
         'Cherry Blossom: Multiplications',
         '2.2',
         'Subtopic 2.2 Assessment',
@@ -447,6 +466,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        2,
         'Cherry Blossom: Multiplications',
         '2.2',
         'Subtopic 2.2 Assessment',
@@ -461,6 +481,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        2,
         'Cherry Blossom: Multiplications',
         '2.2',
         'Subtopic 2.2 Assessment',
@@ -480,6 +501,7 @@ $chapter_quizzes_data = [
 
     // Subtopic 3.1
     [
+        3,
         'Volcanic Jungle: Fractions & Decimals',
         '3.1',
         'Subtopic 3.1 Assessment',
@@ -494,6 +516,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        3,
         'Volcanic Jungle: Fractions & Decimals',
         '3.1',
         'Subtopic 3.1 Assessment',
@@ -508,6 +531,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        3,
         'Volcanic Jungle: Fractions & Decimals',
         '3.1',
         'Subtopic 3.1 Assessment',
@@ -522,6 +546,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        3,
         'Volcanic Jungle: Fractions & Decimals',
         '3.1',
         'Subtopic 3.1 Assessment',
@@ -537,6 +562,7 @@ $chapter_quizzes_data = [
 
     // Subtopic 3.2
     [
+        3,
         'Volcanic Jungle: Fractions & Decimals',
         '3.2',
         'Subtopic 3.2 Assessment',
@@ -551,6 +577,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        3,
         'Volcanic Jungle: Fractions & Decimals',
         '3.2',
         'Subtopic 3.2 Assessment',
@@ -565,6 +592,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        3,
         'Volcanic Jungle: Fractions & Decimals',
         '3.2',
         'Subtopic 3.2 Assessment',
@@ -579,6 +607,7 @@ $chapter_quizzes_data = [
     ],
 
     [
+        3,
         'Volcanic Jungle: Fractions & Decimals',
         '3.2',
         'Subtopic 3.2 Assessment',
@@ -597,6 +626,7 @@ $chapter_quizzes_data = [
 $stmt_q_bank = $pdo->prepare("
     INSERT INTO chapter_quizzes
     (
+        chapter_number,
         chapter_name,
         subtopic_name,
         title,
@@ -609,22 +639,23 @@ $stmt_q_bank = $pdo->prepare("
         explanation,
         score
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ");
 
 foreach ($chapter_quizzes_data as $q) {
     $stmt_q_bank->execute([
-        $q[0],  // chapter_name
-        $q[1],  // subtopic_name
-        $q[2],  // title
-        $q[3],  // question
-        $q[4],  // option_a
-        $q[5],  // option_b
-        $q[6],  // option_c
-        $q[7],  // option_d
-        $q[8],  // correct_option
-        $q[9],  // explanation
-        $q[10]  // score
+        $q[0],  // chapter_number
+        $q[1],  // chapter_name
+        $q[2],  // subtopic_name
+        $q[3],  // title
+        $q[4],  // question
+        $q[5],  // option_a
+        $q[6],  // option_b
+        $q[7],  // option_c
+        $q[8],  // option_d
+        $q[9],  // correct_option
+        $q[10], // explanation
+        $q[11]  // score
     ]);
 }
 
@@ -691,4 +722,3 @@ foreach ($chapter_quizzes_data as $q) {
     </div>
 </body>
 </html>
-```[cite: 9]

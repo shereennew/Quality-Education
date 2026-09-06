@@ -40,17 +40,21 @@ if (!$current_class) {
     die("Classroom not found.");
 }
 
-// Fetch dynamic chapters sorted properly or by their natural occurrence
+// Fetch dynamic chapters sorted strictly by their assigned chapter_number
 $stmt_all_chapters = $pdo->query("
     SELECT chapter_name FROM (
-        SELECT DISTINCT chapter_name FROM chapter_materials 
+        SELECT DISTINCT chapter_name, chapter_number FROM chapter_materials 
         UNION 
-        SELECT DISTINCT chapter_name FROM chapter_quizzes
-    ) ORDER BY CAST(SUBSTR(chapter_name, INSTR(chapter_name, 'Ch ') + 3) AS INTEGER) ASC
+        SELECT DISTINCT chapter_name, chapter_number FROM chapter_quizzes
+    ) ORDER BY chapter_number ASC
 ");
 $db_chapters = $stmt_all_chapters->fetchAll(PDO::FETCH_COLUMN);
-$chapters = !empty($db_chapters) ? $db_chapters : ["Fractions (Ch 1)", "Decimals (Ch 2)", "Percentages (Ch 3)"];
-
+$chapters = !empty($db_chapters) ? $db_chapters : [
+    "Ancient Pyramid: Fundamentals", 
+    "Cherry Blossom: Multiplications", 
+    "Volcanic Jungle: Fractions & Decimals", 
+    "The Cave: Geometry"
+];
 // Fetch global chapter unlock statuses for this classroom
 $unlocked_chapters = [];
 foreach ($chapters as $index => $ch_name) {
