@@ -1,7 +1,3 @@
-http://localhost/Quality-Education/src/student/index.php
-http://localhost/Quality-Education/src/teacher/teacher_home.php
-Copy Paste this link for student page and teacher page
-
 # 1. Project Overview
 EduHunt is an interactive, gamified elementary mathematics learning platform designed to make math engaging for students while providing powerful management and diagnostic tools for teachers. By combining island-based game progression with adaptive AI-powered practice and real-time classroom analytics, EduHunt bridges the gap between self-paced student learning and structured instruction.
 
@@ -30,9 +26,16 @@ EduHunt is an interactive, gamified elementary mathematics learning platform des
 <img width="637" height="951" alt="image" src="https://github.com/user-attachments/assets/a4c3c3af-8444-418f-837c-d2f8c6862ec7" />
 
 # 5. Target Audience
-Students: Primary/elementary school learners seeking an intuitive, engaging, and rewarding way to practice mathematics.   
-Educators: Math teachers needing efficient tools to manage curriculum, create quizzes, lock/unlock content, and identify students who require extra support.
+- Students: Primary/elementary school learners seeking an intuitive, engaging, and rewarding way to practice mathematics.   
+- Educators: Math teachers needing efficient tools to manage curriculum, create quizzes, lock/unlock content, and identify students who require extra support.
 
 # 6. Interface Design
 [quality education.pdf](https://github.com/user-attachments/files/32952733/quality.education.pdf)
+
+# 7. Local Access & Routes
+
+Once you start your local server (e.g., Apache via XAMPP), navigate to:
+
+* **Student Portal:** `http://localhost/Quality-Education/src/student/index.php`
+* **Teacher Portal:** `http://localhost/Quality-Education/src/teacher/teacher_home.php`
 
